@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Observation
 
@@ -63,6 +64,19 @@ final class MeetingRecorderController {
         pastSessions.removeAll { $0.id == session.id }
     }
 
+    private static func ensureMicrophoneAuthorization() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            return await AVCaptureDevice.requestAccess(for: .audio)
+        case .denied, .restricted:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+
     private func startRecording() {
         guard !isRecording else { return }
         guard let apiKey = apiKeyStore.apiKey, !apiKey.isEmpty else {
@@ -71,12 +85,16 @@ final class MeetingRecorderController {
         }
 
         let transcriber = GeminiLiveTranscriber(apiKey: apiKey)
+        transcriber.onError = { [weak self] errorMsg in
+            Task { @MainActor in
+                self?.lastError = "Gemini Live: \(errorMsg)"
+            }
+        }
+
         let capture = MeetingAudioCapture()
         capture.onPCMChunk = { [weak transcriber] data in
             transcriber?.send(pcmChunk: data)
         }
-        // The system can end the capture behind our back (user clicks "Stop
-        // Sharing" in the menu bar indicator) — tear down the whole session.
         capture.onStreamStopped = { [weak self] in
             self?.stopRecording()
         }
@@ -89,10 +107,16 @@ final class MeetingRecorderController {
         transcriber.connect()
 
         Task { @MainActor in
+            let micAuthorized = await Self.ensureMicrophoneAuthorization()
+            guard micAuthorized else {
+                self.lastError = "Microphone access denied — enable it in System Settings > Privacy & Security > Microphone."
+                self.stopRecording()
+                return
+            }
+
             do {
-                try await capture.start()
-                // Stop was pressed while the capture was still starting up —
-                // don't resurrect the session; kill the freshly started capture.
+                let deviceID = AudioDeviceManager.shared.selectedDeviceID
+                try await capture.start(inputDeviceID: deviceID)
                 guard self.audioCapture === capture else {
                     capture.stop()
                     return
@@ -115,11 +139,10 @@ final class MeetingRecorderController {
 
         if var session = currentSession {
             session.endedAt = Date()
-            session.transcript = activeTranscriber?.transcript ?? ""
-            if !session.transcript.isEmpty {
-                MeetingSessionStore.save(session)
-                pastSessions.insert(session, at: 0)
-            }
+            let rawTranscript = activeTranscriber?.transcript.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            session.transcript = rawTranscript.isEmpty ? "Audio recording completed" : rawTranscript
+            MeetingSessionStore.save(session)
+            pastSessions.insert(session, at: 0)
         }
         currentSession = nil
 

@@ -6,6 +6,7 @@ struct IdleNotchHost: View {
     var cornerRadius: CGFloat = 14
     var toast: NotchToast?
     var isRecording: Bool = false
+    var liveTranscript: String = ""
     /// Height of the top pill region that triggers panel expansion on hover.
     /// While a banner (toast/recording) extends the panel downward, hovering
     /// the banner itself must NOT expand — the expanded panel would cover the
@@ -22,6 +23,7 @@ struct IdleNotchHost: View {
             cornerRadius: cornerRadius,
             toast: toast,
             isRecording: isRecording,
+            liveTranscript: liveTranscript,
             onStopRecording: onStopRecording
         )
         .onAppear { launchAtLogin = LoginItemManager.isEnabled }

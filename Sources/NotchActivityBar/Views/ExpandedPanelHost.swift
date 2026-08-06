@@ -22,5 +22,10 @@ struct ExpandedPanelHost: View {
             onHeightChange: onHeightChange
         )
         .onHover(perform: onHoverChange)
+        .onChange(of: meetingRecorderController.isRecording) { _, isRecording in
+            if isRecording {
+                selectedTab = .meetings
+            }
+        }
     }
 }

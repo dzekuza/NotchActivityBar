@@ -5,6 +5,7 @@ struct IdleNotchView: View {
     var cornerRadius: CGFloat = 14
     var toast: NotchToast?
     var isRecording: Bool = false
+    var liveTranscript: String = ""
     var onStopRecording: () -> Void = {}
 
     var body: some View {
@@ -41,21 +42,23 @@ struct IdleNotchView: View {
             } else if isRecording {
                 HStack(spacing: 8) {
                     PulsingRecordDot()
-                    Text("Recording…")
-                        .font(.system(size: 12, weight: .medium))
+                    Text(liveTranscript.isEmpty ? "Recording…" : liveTranscript)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     Button(action: onStopRecording) {
                         Text("Stop")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.danger)
-                            .padding(.horizontal, 10)
+                            .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(Theme.danger.opacity(0.18)))
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 10)
                 .padding(.bottom, 6)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }

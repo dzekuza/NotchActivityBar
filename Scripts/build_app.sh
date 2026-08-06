@@ -32,7 +32,7 @@ cp "$ROOT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 echo "Code signing with $SIGN_IDENTITY..."
-codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+codesign --force --deep --options runtime --entitlements "$ROOT_DIR/Resources/NotchActivityBar.entitlements" --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 
 echo "Done: $APP_BUNDLE"
 

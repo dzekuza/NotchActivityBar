@@ -5,6 +5,7 @@ struct SearchBarView: View {
     let onClearAll: () -> Void
     var isPrivacyMuted: Bool = false
     var cameraAccessDenied: Bool = false
+    var isRecording: Bool = false
     var onToggleRecording: () -> Void = {}
     var onTogglePrivacyMute: () -> Void = {}
 
@@ -25,8 +26,8 @@ struct SearchBarView: View {
             iconButton(
                 systemImage: "record.circle",
                 tint: Theme.danger,
-                isActive: false,
-                help: "Open Screen Recording",
+                isActive: isRecording,
+                help: isRecording ? "Stop Recording" : "Start Live Recording",
                 action: onToggleRecording
             )
 

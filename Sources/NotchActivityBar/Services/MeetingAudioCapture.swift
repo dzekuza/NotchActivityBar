@@ -1,4 +1,6 @@
 @preconcurrency import AVFoundation
+import AudioToolbox
+import CoreAudio
 import CoreMedia
 import Foundation
 import ScreenCaptureKit
@@ -32,9 +34,13 @@ final class MeetingAudioCapture: NSObject {
     private let systemRing = PCMRingBuffer(maxSamples: 16_000 * 5)
     private var mixTimer: Timer?
 
-    func start() async throws {
-        try startMicCapture()
-        try await startSystemAudioCapture()
+    func start(inputDeviceID: AudioDeviceID? = nil) async throws {
+        try startMicCapture(inputDeviceID: inputDeviceID)
+        do {
+            try await startSystemAudioCapture()
+        } catch {
+            NSLog("MeetingAudioCapture: system audio capture unavailable (\(error.localizedDescription)) — proceeding with mic capture only.")
+        }
         startMixTimer()
     }
 
@@ -53,8 +59,19 @@ final class MeetingAudioCapture: NSObject {
 
     // MARK: - Microphone
 
-    private func startMicCapture() throws {
+    private func startMicCapture(inputDeviceID: AudioDeviceID?) throws {
         let input = audioEngine.inputNode
+        if let deviceID = inputDeviceID, let unit = input.audioUnit {
+            var devID = deviceID
+            AudioUnitSetProperty(
+                unit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &devID,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+        }
         let inputFormat = input.outputFormat(forBus: 0)
         guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else { return }
         micConverter = converter
@@ -90,13 +107,13 @@ final class MeetingAudioCapture: NSObject {
         config.height = 2
         config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
 
-        let output = SystemAudioStreamOutput { [weak self] pcmBuffer in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let converter = self.converter(for: pcmBuffer.format)
-                guard let samples = Self.convert(pcmBuffer, using: converter, targetFormat: self.outputFormat) else { return }
-                self.systemRing.append(samples)
-            }
+        let ring = systemRing
+        let targetFormat = outputFormat
+        let output = SystemAudioStreamOutput { pcmBuffer in
+            guard let converter = AVAudioConverter(from: pcmBuffer.format, to: targetFormat),
+                  let samples = Self.convert(pcmBuffer, using: converter, targetFormat: targetFormat)
+            else { return }
+            ring.append(samples)
         }
         streamOutput = output
 
@@ -104,19 +121,6 @@ final class MeetingAudioCapture: NSObject {
         try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: DispatchQueue(label: "com.rysardgvozdovic.NotchActivityBar.systemaudio"))
         try await stream.startCapture()
         self.stream = stream
-    }
-
-    private var systemConverter: AVAudioConverter?
-    private var systemConverterInputFormat: AVAudioFormat?
-
-    private func converter(for inputFormat: AVAudioFormat) -> AVAudioConverter {
-        if let systemConverter, systemConverterInputFormat == inputFormat {
-            return systemConverter
-        }
-        let converter = AVAudioConverter(from: inputFormat, to: outputFormat)!
-        systemConverter = converter
-        systemConverterInputFormat = inputFormat
-        return converter
     }
 
     // MARK: - Mixing

@@ -159,6 +159,7 @@ final class NotchPanelController {
             cornerRadius: idleCornerRadius,
             toast: toast,
             isRecording: isRecordingBannerActive,
+            liveTranscript: meetingRecorderController.activeTranscriber?.transcript ?? "",
             pillHeight: idleGeometry.height,
             onStopRecording: { [weak self] in self?.meetingRecorderController.toggleManually() },
             onHoverChange: { [weak self] in self?.handleIdleHover($0) }

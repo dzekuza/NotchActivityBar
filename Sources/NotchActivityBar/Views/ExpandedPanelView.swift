@@ -19,9 +19,11 @@ struct ExpandedPanelView: View {
                 onClearAll: clearActiveTab,
                 isPrivacyMuted: privacyGuardController.isMuted,
                 cameraAccessDenied: privacyGuardController.cameraAccessDenied,
-                onToggleRecording: ScreenRecordingLauncher.openScreenRecordingControls,
+                isRecording: meetingRecorderController.isRecording,
+                onToggleRecording: { meetingRecorderController.toggleManually() },
                 onTogglePrivacyMute: privacyGuardController.toggle
             )
+            persistentLiveBanner
             TabPillBarView(selection: $selectedTab, counts: [
                 .clipboard: clipboardMonitor.items.count,
                 .screenshots: screenshotMonitor.items.count,
@@ -47,6 +49,39 @@ struct ExpandedPanelView: View {
                         onHeightChange(newValue)
                     }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var persistentLiveBanner: some View {
+        if meetingRecorderController.isRecording && selectedTab != .meetings {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Theme.danger)
+                    .frame(width: 7, height: 7)
+                Text(meetingRecorderController.activeTranscriber?.transcript.isEmpty ?? true
+                     ? "Listening…"
+                     : (meetingRecorderController.activeTranscriber?.transcript ?? ""))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button("Stop") {
+                    meetingRecorderController.toggleManually()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Theme.danger)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Theme.danger.opacity(0.18)))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 6)
         }
     }
 
