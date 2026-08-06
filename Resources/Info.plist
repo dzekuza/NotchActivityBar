@@ -26,5 +26,9 @@
     <string>© 2026 Rysard Gvozdovic</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>Notch Activity Bar needs camera access to claim exclusive control of the camera when you mute it, so no other app can use it.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Notch Activity Bar needs microphone access to mute the microphone for all apps.</string>
 </dict>
 </plist>

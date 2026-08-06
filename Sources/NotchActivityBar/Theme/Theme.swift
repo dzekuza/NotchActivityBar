@@ -3,6 +3,7 @@ import SwiftUI
 enum Theme {
     static let panelBackground = Color(red: 0.039, green: 0.039, blue: 0.043)
     static let amber = Color(red: 1.0, green: 0.690, blue: 0.125)
+    static let danger = Color(red: 1.0, green: 0.318, blue: 0.318)
     static let primaryText = Color(red: 0.961, green: 0.961, blue: 0.941)
     static let secondaryText = Color(red: 0.557, green: 0.557, blue: 0.576)
     static let tertiaryText = Color(red: 0.42, green: 0.42, blue: 0.44)
@@ -23,6 +24,8 @@ enum Theme {
 
     static let idleWidth: CGFloat = 200
     static let idleHeight: CGFloat = 34
+    static let toastExtraHeight: CGFloat = 32
+    static let toastDuration: Double = 1.8
     static let fallbackMenuBarHeight: CGFloat = 24
     static let expandedWidth: CGFloat = 820
     static let expandedMaxHeight: CGFloat = 480

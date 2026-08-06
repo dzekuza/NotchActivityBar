@@ -6,10 +6,12 @@ import Observation
 @Observable
 final class ScreenshotMonitor: NSObject {
     private(set) var items: [ScreenshotItem] = []
+    var onNewItem: ((ScreenshotItem) -> Void)?
 
     private let query = NSMetadataQuery()
     private let historyLimit = 12
     private var manuallyDeletedURLs: Set<URL> = []
+    private var hasFinishedInitialGather = false
 
     func start() {
         query.predicate = NSPredicate(format: "kMDItemIsScreenCapture == 1")
@@ -47,6 +49,8 @@ final class ScreenshotMonitor: NSObject {
         query.disableUpdates()
         defer { query.enableUpdates() }
 
+        let isInitialGather = notification.name == .NSMetadataQueryDidFinishGathering && !hasFinishedInitialGather
+
         let rawResults = (0..<min(query.resultCount, historyLimit * 2)).compactMap { index -> ScreenshotItem? in
             guard let result = query.result(at: index) as? NSMetadataItem,
                   let path = result.value(forAttribute: NSMetadataItemPathKey) as? String
@@ -59,8 +63,17 @@ final class ScreenshotMonitor: NSObject {
         Task { @MainActor in
             self.manuallyDeletedURLs.formIntersection(Set(rawResults.map(\.url)))
             let filtered = rawResults.filter { !self.manuallyDeletedURLs.contains($0.url) }
+            let previousURLs = Set(self.items.map(\.url))
+            let newlyAdded = filtered.filter { !previousURLs.contains($0.url) }
+
             self.items = Array(filtered.prefix(self.historyLimit))
             self.loadThumbnails(for: self.items)
+
+            if isInitialGather {
+                self.hasFinishedInitialGather = true
+            } else if self.hasFinishedInitialGather, let latest = newlyAdded.first {
+                self.onNewItem?(latest)
+            }
         }
     }
 

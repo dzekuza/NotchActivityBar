@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class ClipboardMonitor {
     private(set) var items: [ClipboardItem] = []
+    var onNewItem: ((ClipboardItem) -> Void)?
 
     private let pasteboard = NSPasteboard.general
     private var lastChangeCount: Int
@@ -52,6 +53,7 @@ final class ClipboardMonitor {
         if items.count > historyLimit {
             items.removeLast(items.count - historyLimit)
         }
+        onNewItem?(item)
     }
 
     private func readCurrentItem() -> ClipboardItem? {
