@@ -38,35 +38,11 @@ final class StatusItemController {
 
         menu.addItem(.separator())
 
-        let apiKeyItem = NSMenuItem(title: "Set Gemini API Key…", action: #selector(setGeminiAPIKey), keyEquivalent: "")
-        apiKeyItem.target = self
-        menu.addItem(apiKeyItem)
-
-        menu.addItem(.separator())
-
         let quitItem = NSMenuItem(title: "Quit Notch Activity Bar", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
         statusItem.menu = menu
-    }
-
-    @objc private func setGeminiAPIKey() {
-        let alert = NSAlert()
-        alert.messageText = "Gemini API Key"
-        alert.informativeText = "Used to transcribe meetings/calls via Gemini. Get a key from aistudio.google.com."
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-
-        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-        field.placeholderString = "AIza..."
-        field.stringValue = panelController.geminiAPIKeyStore.apiKey ?? ""
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            panelController.geminiAPIKeyStore.setKey(field.stringValue)
-        }
     }
 
     @objc private func toggleEnabled() {

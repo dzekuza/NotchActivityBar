@@ -76,13 +76,16 @@ struct MeetingsTabView: View {
                     .foregroundStyle(Theme.danger)
             }
 
-            Text(controller.activeTranscriber?.transcript.isEmpty ?? true
-                 ? "Listening…"
-                 : (controller.activeTranscriber?.transcript ?? ""))
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.primaryText.opacity(0.9))
-                .lineLimit(4)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if controller.activeTranscriber?.transcript.isEmpty ?? true {
+                TranscribingIndicatorView()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(controller.activeTranscriber?.transcript ?? "")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.primaryText.opacity(0.9))
+                    .lineLimit(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(12)
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))

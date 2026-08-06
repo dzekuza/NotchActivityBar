@@ -7,8 +7,7 @@ final class NotchPanelController {
     let clipboardMonitor = ClipboardMonitor()
     let screenshotMonitor = ScreenshotMonitor()
     let privacyGuardController = PrivacyGuardController()
-    let geminiAPIKeyStore = GeminiAPIKeyStore()
-    lazy var meetingRecorderController = MeetingRecorderController(apiKeyStore: geminiAPIKeyStore)
+    lazy var meetingRecorderController = MeetingRecorderController()
 
     private let idlePanel: NotchPanel
     private let expandedPanel: NotchPanel
@@ -25,6 +24,7 @@ final class NotchPanelController {
     private var isRecordingBannerActive = false
     private(set) var isEnabled = false
     private var lastExpandedHeight: CGFloat = Theme.idleHeight
+    private var suppressNextExpandedResizeAnimation = false
 
     init() {
         idlePanel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: Theme.idleWidth, height: Theme.idleHeight))
@@ -36,7 +36,6 @@ final class NotchPanelController {
                 screenshotMonitor: screenshotMonitor,
                 privacyGuardController: privacyGuardController,
                 meetingRecorderController: meetingRecorderController,
-                geminiAPIKeyStore: geminiAPIKeyStore,
                 onHoverChange: { [weak self] in self?.handleExpandedHover($0) },
                 onHeightChange: { [weak self] in self?.resizeExpandedPanel(to: $0) }
             )
@@ -208,7 +207,15 @@ final class NotchPanelController {
     private func resizeExpandedPanel(to height: CGFloat) {
         let clampedHeight = min(max(height, Theme.idleHeight), Theme.expandedMaxHeight)
         lastExpandedHeight = clampedHeight
-        applyExpandedPanelFrame(height: clampedHeight, animated: expandedPanel.isVisible)
+        // The frame shown on open is a guess (the last known height, which on
+        // the very first hover of a session is just the tiny idle height).
+        // SwiftUI reports the real content height a beat later — animating
+        // that correction reads as the panel visibly closing and reopening.
+        // Snap the first post-open resize instead; only later resizes (e.g.
+        // switching tabs while already open) should animate.
+        let shouldAnimate = expandedPanel.isVisible && !suppressNextExpandedResizeAnimation
+        suppressNextExpandedResizeAnimation = false
+        applyExpandedPanelFrame(height: clampedHeight, animated: shouldAnimate)
     }
 
     private func applyExpandedPanelFrame(height: CGFloat, animated: Bool) {
@@ -238,7 +245,16 @@ final class NotchPanelController {
             // callback catches up asynchronously.
             applyExpandedPanelFrame(height: lastExpandedHeight, animated: false)
             expandedPanel.orderFrontRegardless()
+            suppressNextExpandedResizeAnimation = true
         } else {
+            // Once the expanded panel is showing, it sits on top of and fully
+            // covers the idle pill's hover region — AppKit delivers that as a
+            // mouseExited on the (now-occluded) idle panel even though the
+            // cursor never actually left the notch, which would otherwise
+            // schedule a collapse the instant the expanded panel appears.
+            // From here on, only the expanded panel's own hover (below) should
+            // drive collapse.
+            guard !expandedPanel.isVisible else { return }
             scheduleCollapse()
         }
     }

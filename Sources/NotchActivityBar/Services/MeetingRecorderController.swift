@@ -11,18 +11,16 @@ final class MeetingRecorderController {
     private(set) var pastSessions: [MeetingSession] = []
 
     /// While recording, observe `activeTranscriber?.transcript` for the live text.
-    private(set) var activeTranscriber: GeminiLiveTranscriber?
+    private(set) var activeTranscriber: AppleSpeechTranscriber?
 
     /// Fired whenever `isRecording` flips, for non-SwiftUI observers (the notch banner).
     var onRecordingStateChange: ((Bool) -> Void)?
 
-    private let apiKeyStore: GeminiAPIKeyStore
     private let callActivityDetector = CallActivityDetector()
     private var audioCapture: MeetingAudioCapture?
     private var currentSession: MeetingSession?
 
-    init(apiKeyStore: GeminiAPIKeyStore) {
-        self.apiKeyStore = apiKeyStore
+    init() {
         pastSessions = MeetingSessionStore.loadAll()
     }
 
@@ -79,15 +77,11 @@ final class MeetingRecorderController {
 
     private func startRecording() {
         guard !isRecording else { return }
-        guard let apiKey = apiKeyStore.apiKey, !apiKey.isEmpty else {
-            lastError = "No Gemini API key set — add one from the menu bar icon."
-            return
-        }
 
-        let transcriber = GeminiLiveTranscriber(apiKey: apiKey)
+        let transcriber = AppleSpeechTranscriber()
         transcriber.onError = { [weak self] errorMsg in
             Task { @MainActor in
-                self?.lastError = "Gemini Live: \(errorMsg)"
+                self?.lastError = "Transcription: \(errorMsg)"
             }
         }
 

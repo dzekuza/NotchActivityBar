@@ -14,6 +14,7 @@ let package = Package(
                 .linkedFramework("CoreAudio"),
                 .linkedFramework("CoreMediaIO"),
                 .linkedFramework("ScreenCaptureKit"),
+                .linkedFramework("Speech"),
                 // Embed Info.plist so the bare executable (swift run / Xcode scheme)
                 // has a bundle identifier; without it, App Intents registration and
                 // window-tab indexing log errors at launch.

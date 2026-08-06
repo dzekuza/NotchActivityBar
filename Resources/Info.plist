@@ -32,5 +32,7 @@
     <string>Notch Activity Bar requires microphone access to record and transcribe live call and meeting audio.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Notch Activity Bar requires screen recording access to capture system audio output during calls.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Notch Activity Bar uses on-device speech recognition to transcribe live call and meeting audio.</string>
 </dict>
 </plist>

@@ -6,7 +6,6 @@ struct ExpandedPanelView: View {
     let screenshotMonitor: ScreenshotMonitor
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
-    let geminiAPIKeyStore: GeminiAPIKeyStore
     @Binding var selectedTab: AppTab
     var onHeightChange: (CGFloat) -> Void = { _ in }
 
@@ -59,13 +58,16 @@ struct ExpandedPanelView: View {
                 Circle()
                     .fill(Theme.danger)
                     .frame(width: 7, height: 7)
-                Text(meetingRecorderController.activeTranscriber?.transcript.isEmpty ?? true
-                     ? "Listening…"
-                     : (meetingRecorderController.activeTranscriber?.transcript ?? ""))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if meetingRecorderController.activeTranscriber?.transcript.isEmpty ?? true {
+                    TranscribingIndicatorView()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text(meetingRecorderController.activeTranscriber?.transcript ?? "")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.primaryText)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 Button("Stop") {
                     meetingRecorderController.toggleManually()
@@ -101,7 +103,7 @@ struct ExpandedPanelView: View {
         case .meetings:
             MeetingsTabView(controller: meetingRecorderController)
         case .settings:
-            SettingsTabView(apiKeyStore: geminiAPIKeyStore)
+            SettingsTabView()
         case .music, .timer:
             PlaceholderTabView(tab: selectedTab)
         }
