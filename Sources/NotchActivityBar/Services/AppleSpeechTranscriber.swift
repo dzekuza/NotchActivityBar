@@ -34,9 +34,11 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
         // a MainActor class) — but Speech actually invokes it off the main
         // thread, which traps at runtime. Marking it explicitly breaks that
         // false inference; the inner Task does the real hop back to MainActor.
+        PermissionPrompt.activate()
         SFSpeechRecognizer.requestAuthorization { @Sendable [weak self] status in
             NSLog("AppleSpeechTranscriber: authorization status=\(status.rawValue)")
             Task { @MainActor [weak self] in
+                PermissionPrompt.restore()
                 guard let self else { return }
                 guard status == .authorized else {
                     self.lastError = "Speech recognition access denied — enable it in System Settings > Privacy & Security > Speech Recognition."

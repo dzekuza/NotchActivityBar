@@ -75,7 +75,7 @@ final class MeetingRecorderController {
         case .authorized:
             return true
         case .notDetermined:
-            return await AVCaptureDevice.requestAccess(for: .audio)
+            return await PermissionPrompt.around { await AVCaptureDevice.requestAccess(for: .audio) }
         case .denied, .restricted:
             return false
         @unknown default:

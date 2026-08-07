@@ -54,7 +54,7 @@ final class PrivacyGuardController {
         case .authorized:
             return true
         case .notDetermined:
-            return await AVCaptureDevice.requestAccess(for: .video)
+            return await PermissionPrompt.around { await AVCaptureDevice.requestAccess(for: .video) }
         case .denied, .restricted:
             return false
         @unknown default:
