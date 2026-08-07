@@ -31,13 +31,24 @@ APPCAST_PATH="$ROOT_DIR/appcast.xml"
 
 INSTALL=0
 RELEASE=0
-for arg in "$@"; do
-    case "$arg" in
-        --install) INSTALL=1 ;;
-        --release) RELEASE=1 ;;
+BUMP_VERSION=""
+RELEASE_NOTES=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --install) INSTALL=1; shift ;;
+        --release) RELEASE=1; shift ;;
+        --bump)
+            BUMP_VERSION="${2:-}"
+            [ -n "$BUMP_VERSION" ] || { echo "--bump requires a version, e.g. --bump 1.0.1" >&2; exit 1; }
+            shift 2
+            ;;
+        --notes)
+            RELEASE_NOTES="${2:-}"
+            shift 2
+            ;;
         *)
-            echo "Unknown argument: $arg" >&2
-            echo "Usage: $0 [--install] [--release]" >&2
+            echo "Unknown argument: $1" >&2
+            echo "Usage: $0 [--install] [--release [--bump VERSION] [--notes \"...\"]]" >&2
             exit 1
             ;;
     esac
@@ -46,6 +57,43 @@ done
 if [ "$RELEASE" = "1" ] && [ "$INSTALL" = "1" ]; then
     echo "--install and --release are mutually exclusive." >&2
     exit 1
+fi
+
+if [ -n "$BUMP_VERSION" ] && [ "$RELEASE" != "1" ]; then
+    echo "--bump requires --release." >&2
+    exit 1
+fi
+
+if [ -n "$BUMP_VERSION" ]; then
+    if ! [[ "$BUMP_VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+        echo "--bump version must look like 1.2.3 (got: $BUMP_VERSION)" >&2
+        exit 1
+    fi
+
+    TAG="v$BUMP_VERSION"
+    if git -C "$ROOT_DIR" rev-parse "$TAG" >/dev/null 2>&1; then
+        echo "Tag $TAG already exists locally." >&2
+        exit 1
+    fi
+    REMOTE_TAG=$(env -u GITHUB_TOKEN git -C "$ROOT_DIR" ls-remote --tags origin "refs/tags/$TAG")
+    if [ -n "$REMOTE_TAG" ]; then
+        echo "Tag $TAG already exists on origin." >&2
+        exit 1
+    fi
+
+    # Refuse to bundle unrelated in-progress work into an automated release commit.
+    DIRTY_FILES=$(git -C "$ROOT_DIR" status --porcelain -- . ":(exclude)Resources/Info.plist" ":(exclude)appcast.xml")
+    if [ -n "$DIRTY_FILES" ]; then
+        echo "Working tree has uncommitted changes outside Info.plist/appcast.xml — commit or stash them first:" >&2
+        echo "$DIRTY_FILES" >&2
+        exit 1
+    fi
+
+    CURRENT_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$ROOT_DIR/Resources/Info.plist")
+    NEW_BUILD=$((CURRENT_BUILD + 1))
+    echo "Bumping version to $BUMP_VERSION (build $NEW_BUILD)..."
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $BUMP_VERSION" "$ROOT_DIR/Resources/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEW_BUILD" "$ROOT_DIR/Resources/Info.plist"
 fi
 
 SIGN_IDENTITY="$DEV_SIGN_IDENTITY"
@@ -127,12 +175,30 @@ if [ "$RELEASE" = "1" ]; then
         "$DIST_DIR"
 
     echo "Done: $DMG_PATH"
-    echo
-    echo "Next steps to publish this release:"
-    echo "  1. git commit the updated appcast.xml and push to main."
-    echo "  2. gh release create $TAG \"$DMG_PATH\" --title \"$APP_NAME $VERSION\" --notes \"...\""
-    echo "     (the DMG must be uploaded at: $DOWNLOAD_URL)"
-    echo "  Existing installs will pick up the update automatically via SUFeedURL."
+
+    if [ -n "$BUMP_VERSION" ]; then
+        BRANCH=$(git -C "$ROOT_DIR" rev-parse --abbrev-ref HEAD)
+        NOTES="${RELEASE_NOTES:-Release $VERSION}"
+
+        echo
+        echo "Publishing $TAG..."
+        git -C "$ROOT_DIR" add Resources/Info.plist "$APPCAST_PATH"
+        git -C "$ROOT_DIR" commit -m "Release $TAG"
+        env -u GITHUB_TOKEN git -C "$ROOT_DIR" push origin "$BRANCH"
+        env -u GITHUB_TOKEN gh release create "$TAG" "$DMG_PATH" --title "$APP_NAME $VERSION" --notes "$NOTES"
+
+        echo "Published: https://github.com/$GITHUB_REPO/releases/tag/$TAG"
+        echo "Existing installs will pick up the update automatically via SUFeedURL."
+    else
+        echo
+        echo "Next steps to publish this release:"
+        echo "  1. git commit the updated appcast.xml and push to main."
+        echo "  2. gh release create $TAG \"$DMG_PATH\" --title \"$APP_NAME $VERSION\" --notes \"...\""
+        echo "     (the DMG must be uploaded at: $DOWNLOAD_URL)"
+        echo "  Existing installs will pick up the update automatically via SUFeedURL."
+        echo
+        echo "Tip: pass --bump $VERSION (or a newer version) next time to automate this."
+    fi
 elif [ "$INSTALL" = "1" ]; then
     echo "Installing to $INSTALLED_APP..."
     pkill -f "$INSTALLED_APP/Contents/MacOS/$APP_NAME" 2>/dev/null || true
