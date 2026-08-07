@@ -9,6 +9,7 @@ struct MeetingsTabView: View {
 
             if controller.isRecording {
                 liveCard
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             if let error = controller.lastError {
@@ -16,12 +17,15 @@ struct MeetingsTabView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.danger)
                     .padding(.horizontal, 20)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             MeetingCardScrollView(sessions: controller.pastSessions) { session in
                 controller.deleteSession(session)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: controller.isRecording)
+        .animation(.easeInOut(duration: 0.2), value: controller.lastError)
         .padding(.bottom, 16)
     }
 
@@ -37,14 +41,18 @@ struct MeetingsTabView: View {
             Spacer()
 
             Button(controller.isRecording ? "Stop" : "Record Now") {
-                controller.toggleManually()
+                withAnimation(.snappy(duration: 0.2)) {
+                    controller.toggleManually()
+                }
             }
             .buttonStyle(.plain)
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(controller.isRecording ? Theme.danger : Theme.primaryText)
+            .contentTransition(.interpolate)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(Capsule().fill(Theme.inactiveTabBackground))
+            .animation(.snappy(duration: 0.2), value: controller.isRecording)
         }
         .padding(.horizontal, 20)
     }

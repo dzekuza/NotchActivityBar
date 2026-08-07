@@ -31,18 +31,16 @@ struct ExpandedPanelView: View {
                 .notes: notesController.notes.count,
             ])
             content
+                .frame(width: Theme.expandedWidth)
                 .animation(.easeInOut(duration: 0.18), value: selectedTab)
         }
         .frame(width: Theme.expandedWidth)
         .background(
             Theme.panelBackground,
-            in: UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: Theme.panelCornerRadius,
-                bottomTrailingRadius: Theme.panelCornerRadius,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
+            in: NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: Theme.panelCornerRadius)
+        )
+        .clipShape(
+            NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: Theme.panelCornerRadius)
         )
         .background {
             GeometryReader { proxy in

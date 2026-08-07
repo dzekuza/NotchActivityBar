@@ -18,6 +18,7 @@ enum Theme {
     static let inactiveTabCountText = Color(red: 0.46, green: 0.46, blue: 0.48)
 
     static let panelCornerRadius: CGFloat = 24
+    static let notchTopCornerRadius: CGFloat = 9
     static let rowCornerRadius: CGFloat = 12
     static let iconSlotCornerRadius: CGFloat = 8
     static let cardCornerRadius: CGFloat = 16

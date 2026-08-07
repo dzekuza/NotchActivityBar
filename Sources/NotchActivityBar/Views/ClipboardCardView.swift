@@ -33,10 +33,12 @@ struct ClipboardCardView: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Theme.amber)
+                        .transition(.scale(scale: 0.5).combined(with: .opacity))
                 } else {
                     Text(item.relativeTime)
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(Theme.tertiaryText)
+                        .transition(.opacity)
                 }
             }
             .padding(.horizontal, 10)
