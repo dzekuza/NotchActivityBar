@@ -17,6 +17,8 @@ struct TabPillBarView: View {
                             Text("\(count)")
                                 .font(.system(size: 12, weight: .regular))
                                 .foregroundStyle(selection == tab ? Theme.activeTabText.opacity(0.5) : Theme.inactiveTabCountText)
+                                .contentTransition(.numericText())
+                                .animation(.snappy(duration: 0.25), value: count)
                         }
                     }
                     .foregroundStyle(selection == tab ? Theme.activeTabText : Theme.inactiveTabText)

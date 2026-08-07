@@ -31,6 +31,7 @@ struct ExpandedPanelView: View {
                 .notes: notesController.notes.count,
             ])
             content
+                .animation(.easeInOut(duration: 0.18), value: selectedTab)
         }
         .frame(width: Theme.expandedWidth)
         .background(
@@ -98,16 +99,21 @@ struct ExpandedPanelView: View {
             } onDelete: { item in
                 clipboardMonitor.delete(item)
             }
+            .transition(.opacity)
         case .screenshots:
             ScreenshotCardScrollView(items: filteredScreenshotItems) { item in
                 screenshotMonitor.delete(item)
             }
+            .transition(.opacity)
         case .meetings:
             MeetingsTabView(controller: meetingRecorderController)
+                .transition(.opacity)
         case .notes:
             NotesTabView(controller: notesController)
+                .transition(.opacity)
         case .settings:
             SettingsTabView()
+                .transition(.opacity)
         }
     }
 
