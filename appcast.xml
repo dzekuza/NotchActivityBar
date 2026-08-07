@@ -9,7 +9,7 @@
             <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/dzekuza/NotchActivityBar/releases/download/v1.0.0/NotchActivityBar.dmg" length="1881728" type="application/octet-stream" sparkle:edSignature="l3VKDWH8/zuB4RmKmiImSlbn6W4x7b9lGnXOVGb8TSJKK8hnL6bfPwRQbwUUJIXnW6gMFDA/T4uN0a9rIkZPDg=="/>
+            <enclosure url="https://github.com/dzekuza/NotchActivityBar/releases/download/v1.0.0/NotchActivityBar.dmg" length="1907312" type="application/octet-stream" sparkle:edSignature="jWvuurj8kEoIXOvtM0IEkSAS63bBQGq8rNppu3iYKCHh2M6cPp0Y4b/+JgcsfJ9E5oGioxGE2D6WCm12QYyeDQ=="/>
         </item>
     </channel>
 </rss>
