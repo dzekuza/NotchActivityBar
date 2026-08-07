@@ -48,7 +48,7 @@ struct ClipboardCardView: View {
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(isHovering ? 0.16 : 0.06), lineWidth: 1)
+                .strokeBorder(isHovering ? Theme.cardBorderHover : Theme.cardBorderDefault, lineWidth: 1)
         }
         .overlay(alignment: .topTrailing) {
             if isHovering {
@@ -57,7 +57,7 @@ struct ClipboardCardView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 18, height: 18)
-                        .background(Circle().fill(Color.black.opacity(0.65)))
+                        .background(Circle().fill(Theme.overlayChipBackground))
                 }
                 .buttonStyle(.plain)
                 .padding(6)
@@ -94,19 +94,7 @@ struct ClipboardCardView: View {
                     .overlay { Image(systemName: "photo").foregroundStyle(Theme.tertiaryText) }
             }
         case .link:
-            Theme.cardBackground
-                .overlay(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: "link")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Theme.amber)
-                        Text(item.title)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.primaryText)
-                            .lineLimit(3)
-                    }
-                    .padding(10)
-                }
+            linkContentArea
         case .text:
             Theme.cardBackground
                 .overlay(alignment: .topLeading) {
@@ -115,6 +103,61 @@ struct ClipboardCardView: View {
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(5)
                         .padding(10)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var linkContentArea: some View {
+        if let thumbnail = item.thumbnail {
+            ZStack(alignment: .bottomLeading) {
+                Image(nsImage: thumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: Theme.cardWidth, height: Theme.cardImageHeight)
+                    .clipped()
+
+                LinearGradient(
+                    colors: [.black.opacity(0.75), .clear],
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+                .frame(height: 64)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.linkPreviewTitle ?? item.linkHost ?? item.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                    if let host = item.linkHost {
+                        Text(host)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.75))
+                            .lineLimit(1)
+                    }
+                }
+                .padding(10)
+            }
+        } else {
+            Theme.cardBackground
+                .overlay(alignment: .topLeading) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "link")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Theme.amber)
+                            Spacer()
+                            if !item.linkFetchFailed {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                        }
+                        Text(item.title)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.primaryText)
+                            .lineLimit(3)
+                    }
+                    .padding(10)
                 }
         }
     }

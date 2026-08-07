@@ -2,15 +2,16 @@ import SwiftUI
 
 struct ScreenshotCardScrollView: View {
     let items: [ScreenshotItem]
+    var isSearching: Bool = false
     let onDelete: (ScreenshotItem) -> Void
 
     var body: some View {
         Group {
             if items.isEmpty {
                 EmptyStateView(
-                    systemImage: "camera.viewfinder",
-                    title: "No screenshots today",
-                    subtitle: "⌘⇧5 to capture one"
+                    systemImage: isSearching ? "magnifyingglass" : "camera.viewfinder",
+                    title: isSearching ? "No matches" : "No screenshots today",
+                    subtitle: isSearching ? "Try a different search" : "⌘⇧5 to capture one"
                 )
                 .frame(width: Theme.expandedWidth)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))

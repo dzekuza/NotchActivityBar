@@ -61,9 +61,9 @@ final class StatusItemController {
     }
 
     @objc private func toggleLaunchAtLogin() {
-        let newValue = !LoginItemManager.isEnabled
-        LoginItemManager.setEnabled(newValue)
-        loginItem.state = newValue ? .on : .off
+        let requested = !LoginItemManager.isEnabled
+        let actual = LoginItemManager.setEnabled(requested)
+        loginItem.state = actual ? .on : .off
     }
 
     @objc private func checkForUpdates() {

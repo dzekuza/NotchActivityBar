@@ -11,8 +11,16 @@ import ScreenCaptureKit
 /// stream, and hands off fixed-size chunks for streaming transcription.
 @MainActor
 final class MeetingAudioCapture: NSObject {
-    enum CaptureError: Error {
+    enum CaptureError: LocalizedError {
         case noDisplay
+        case converterCreationFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .noDisplay: "No display available for system audio capture."
+            case .converterCreationFailed: "Couldn't set up audio format conversion for the selected microphone."
+            }
+        }
     }
 
     var onPCMChunk: ((Data) -> Void)?
@@ -73,7 +81,9 @@ final class MeetingAudioCapture: NSObject {
             )
         }
         let inputFormat = input.outputFormat(forBus: 0)
-        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else { return }
+        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+            throw CaptureError.converterCreationFailed
+        }
         micConverter = converter
 
         // The tap fires on a realtime audio queue. The closure must be @Sendable

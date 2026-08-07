@@ -2,18 +2,42 @@ import SwiftUI
 
 struct NotesTabView: View {
     let controller: NotesController
+    var searchText: String = ""
 
     @State private var draft = ""
+    @State private var expandedNote: NoteItem?
     @FocusState private var isInputFocused: Bool
+
+    private var filteredNotes: [NoteItem] {
+        guard !searchText.isEmpty else { return controller.notes }
+        return controller.notes.filter { $0.text.localizedCaseInsensitiveContains(searchText) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             inputRow
-            NoteCardScrollView(notes: controller.notes) { note in
+            NoteCardScrollView(notes: filteredNotes, isSearching: !searchText.isEmpty) { note in
                 controller.delete(note)
+                if expandedNote?.id == note.id { expandedNote = nil }
+            } onExpand: { note in
+                expandedNote = note
             }
         }
         .padding(.bottom, 16)
+        .overlay {
+            if let note = expandedNote {
+                NoteDetailOverlay(
+                    note: note,
+                    onDelete: {
+                        controller.delete(note)
+                        expandedNote = nil
+                    },
+                    onClose: { expandedNote = nil }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+        .animation(.snappy(duration: 0.2), value: expandedNote)
     }
 
     private var inputRow: some View {

@@ -48,7 +48,7 @@ struct ScreenshotCardView: View {
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(isHovering ? 0.16 : 0.06), lineWidth: 1)
+                .strokeBorder(isHovering ? Theme.cardBorderHover : Theme.cardBorderDefault, lineWidth: 1)
         }
         .overlay(alignment: .topTrailing) {
             if isHovering {
@@ -57,7 +57,7 @@ struct ScreenshotCardView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 18, height: 18)
-                        .background(Circle().fill(Color.black.opacity(0.65)))
+                        .background(Circle().fill(Theme.overlayChipBackground))
                 }
                 .buttonStyle(.plain)
                 .padding(6)

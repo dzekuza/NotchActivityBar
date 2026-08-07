@@ -2,6 +2,15 @@ import SwiftUI
 
 struct MeetingsTabView: View {
     let controller: MeetingRecorderController
+    var searchText: String = ""
+
+    private var filteredSessions: [MeetingSession] {
+        guard !searchText.isEmpty else { return controller.pastSessions }
+        return controller.pastSessions.filter {
+            $0.title.localizedCaseInsensitiveContains(searchText) ||
+            $0.transcript.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -20,9 +29,9 @@ struct MeetingsTabView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            MeetingCardScrollView(sessions: controller.pastSessions) { session in
+            MeetingCardScrollView(sessions: filteredSessions, isSearching: !searchText.isEmpty, onDelete: { session in
                 controller.deleteSession(session)
-            }
+            })
         }
         .animation(.easeInOut(duration: 0.2), value: controller.isRecording)
         .animation(.easeInOut(duration: 0.2), value: controller.lastError)

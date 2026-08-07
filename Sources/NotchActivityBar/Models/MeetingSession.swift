@@ -5,6 +5,7 @@ struct MeetingSession: Identifiable, Equatable, Codable {
     var startedAt: Date
     var endedAt: Date?
     var transcript: String
+    var summary: String?
 
     var title: String {
         Self.titleFormatter.string(from: startedAt)

@@ -2,15 +2,17 @@ import SwiftUI
 
 struct NoteCardScrollView: View {
     let notes: [NoteItem]
+    var isSearching: Bool = false
     let onDelete: (NoteItem) -> Void
+    var onExpand: (NoteItem) -> Void = { _ in }
 
     var body: some View {
         Group {
             if notes.isEmpty {
                 EmptyStateView(
-                    systemImage: "note.text",
-                    title: "No notes yet",
-                    subtitle: "Jot something down above to save it here"
+                    systemImage: isSearching ? "magnifyingglass" : "note.text",
+                    title: isSearching ? "No matches" : "No notes yet",
+                    subtitle: isSearching ? "Try a different search" : "Jot something down above to save it here"
                 )
                 .frame(width: Theme.expandedWidth)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
@@ -20,6 +22,8 @@ struct NoteCardScrollView: View {
                         ForEach(notes) { note in
                             NoteCardView(note: note) {
                                 onDelete(note)
+                            } onExpand: {
+                                onExpand(note)
                             }
                             .transition(.scale(scale: 0.85).combined(with: .opacity))
                         }

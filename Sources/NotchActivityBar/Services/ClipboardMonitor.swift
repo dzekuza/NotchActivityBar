@@ -38,7 +38,14 @@ final class ClipboardMonitor {
 
     func copy(_ item: ClipboardItem) {
         pasteboard.clearContents()
-        pasteboard.setString(item.title, forType: .string)
+        switch item.kind {
+        case .text, .color, .link:
+            pasteboard.setString(item.fullText ?? item.title, forType: .string)
+        case .image:
+            if let imageData = item.imageData {
+                pasteboard.setData(imageData, forType: .tiff)
+            }
+        }
         lastChangeCount = pasteboard.changeCount
     }
 
@@ -54,6 +61,30 @@ final class ClipboardMonitor {
             items.removeLast(items.count - historyLimit)
         }
         onNewItem?(item)
+
+        if item.kind == .link, let url = URL(string: item.title) {
+            Task { [weak self] in
+                await self?.fetchLinkPreview(for: item.id, url: url)
+            }
+        }
+    }
+
+    private func fetchLinkPreview(for id: UUID, url: URL) async {
+        let result = await LinkPreviewFetcher.fetchPreview(for: url)
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let current = items[index]
+        items[index] = ClipboardItem(
+            id: current.id,
+            kind: current.kind,
+            title: current.title,
+            subtitle: current.subtitle,
+            copiedAt: current.copiedAt,
+            thumbnail: result.image,
+            fullText: current.fullText,
+            imageData: current.imageData,
+            linkPreviewTitle: result.title,
+            linkFetchFailed: result.image == nil && result.title == nil
+        )
     }
 
     private func readCurrentItem() -> ClipboardItem? {
@@ -63,7 +94,9 @@ final class ClipboardMonitor {
                 title: color.hexString,
                 subtitle: "Color · copied",
                 copiedAt: Date(),
-                thumbnail: nil
+                thumbnail: nil,
+                fullText: nil,
+                imageData: nil
             )
         }
 
@@ -73,7 +106,9 @@ final class ClipboardMonitor {
                 title: "Image",
                 subtitle: "\(Int(image.size.width))×\(Int(image.size.height)) · copied",
                 copiedAt: Date(),
-                thumbnail: image
+                thumbnail: image,
+                fullText: nil,
+                imageData: imageData
             )
         }
 
@@ -86,7 +121,9 @@ final class ClipboardMonitor {
                 title: string,
                 subtitle: "Link · copied",
                 copiedAt: Date(),
-                thumbnail: nil
+                thumbnail: nil,
+                fullText: nil,
+                imageData: nil
             )
         }
 
@@ -97,7 +134,9 @@ final class ClipboardMonitor {
             title: preview,
             subtitle: lineCount > 1 ? "\(lineCount) lines copied" : "Text copied",
             copiedAt: Date(),
-            thumbnail: nil
+            thumbnail: nil,
+            fullText: string,
+            imageData: nil
         )
     }
 }

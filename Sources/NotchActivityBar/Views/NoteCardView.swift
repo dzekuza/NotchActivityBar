@@ -3,8 +3,13 @@ import SwiftUI
 struct NoteCardView: View {
     let note: NoteItem
     let onDelete: () -> Void
+    var onExpand: () -> Void = {}
 
     @State private var isHovering = false
+
+    private var isLong: Bool {
+        note.text.count > 90 || note.text.filter { $0 == "\n" }.count >= 4
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -15,6 +20,20 @@ struct NoteCardView: View {
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(5)
                         .padding(10)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if isLong && isHovering {
+                        Button(action: onExpand) {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 18, height: 18)
+                                .background(Circle().fill(Theme.overlayChipBackground))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(6)
+                        .transition(.opacity)
+                    }
                 }
                 .frame(width: Theme.cardWidth, height: Theme.cardImageHeight)
                 .clipShape(
@@ -45,7 +64,7 @@ struct NoteCardView: View {
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(isHovering ? 0.16 : 0.06), lineWidth: 1)
+                .strokeBorder(isHovering ? Theme.cardBorderHover : Theme.cardBorderDefault, lineWidth: 1)
         }
         .overlay(alignment: .topTrailing) {
             if isHovering {
@@ -54,7 +73,7 @@ struct NoteCardView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 18, height: 18)
-                        .background(Circle().fill(Color.black.opacity(0.65)))
+                        .background(Circle().fill(Theme.overlayChipBackground))
                 }
                 .buttonStyle(.plain)
                 .padding(6)
@@ -64,5 +83,9 @@ struct NoteCardView: View {
         .scaleEffect(isHovering ? 1.02 : 1.0)
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .onHover { isHovering = $0 }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isLong { onExpand() }
+        }
     }
 }

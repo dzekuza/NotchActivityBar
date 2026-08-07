@@ -6,6 +6,13 @@ struct MeetingCardView: View {
 
     @State private var isHovering = false
 
+    private var previewText: String {
+        if let summary = session.summary, !summary.isEmpty {
+            return summary
+        }
+        return session.transcript.isEmpty ? "No transcript" : session.transcript
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Theme.cardBackground
@@ -14,7 +21,7 @@ struct MeetingCardView: View {
                         Image(systemName: "waveform")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.amber)
-                        Text(session.transcript.isEmpty ? "No transcript" : session.transcript)
+                        Text(previewText)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.primaryText)
                             .lineLimit(4)
@@ -47,7 +54,7 @@ struct MeetingCardView: View {
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
-                .strokeBorder(Color.white.opacity(isHovering ? 0.16 : 0.06), lineWidth: 1)
+                .strokeBorder(isHovering ? Theme.cardBorderHover : Theme.cardBorderDefault, lineWidth: 1)
         }
         .overlay(alignment: .topTrailing) {
             if isHovering {
@@ -56,7 +63,7 @@ struct MeetingCardView: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 18, height: 18)
-                        .background(Circle().fill(Color.black.opacity(0.65)))
+                        .background(Circle().fill(Theme.overlayChipBackground))
                 }
                 .buttonStyle(.plain)
                 .padding(6)

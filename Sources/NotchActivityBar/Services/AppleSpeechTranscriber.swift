@@ -8,7 +8,7 @@ import Speech
 /// network calls, no API key.
 @MainActor
 @Observable
-final class AppleSpeechTranscriber: NSObject {
+final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     private(set) var transcript = ""
     private(set) var isConnected = false
     private(set) var lastError: String? {

@@ -32,7 +32,6 @@ struct ExpandedPanelView: View {
             ])
             content
                 .frame(width: Theme.expandedWidth)
-                .animation(.easeInOut(duration: 0.18), value: selectedTab)
         }
         .frame(width: Theme.expandedWidth)
         .background(
@@ -50,6 +49,14 @@ struct ExpandedPanelView: View {
                     }
             }
         }
+        // The window's content view is always exactly as tall as the AppKit
+        // frame (animated separately in NotchPanelController), while this
+        // SwiftUI content's own ideal height animates on its own clock when
+        // switching tabs. Without pinning to the top, NSHostingView centers
+        // undersized/oversized content within that frame, so any momentary
+        // mismatch between the two animations reads as growth on both the
+        // top and bottom edges instead of just the bottom.
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     @ViewBuilder
@@ -92,34 +99,22 @@ struct ExpandedPanelView: View {
     private var content: some View {
         switch selectedTab {
         case .clipboard:
-            ClipboardCardScrollView(items: filteredClipboardItems) { item in
-                clipboardMonitor.copy(item)
-            } onDelete: { item in
-                clipboardMonitor.delete(item)
-            }
-            .transition(.opacity)
+            ClipboardTabView(monitor: clipboardMonitor, searchText: searchText)
+                .transition(.opacity)
         case .screenshots:
-            ScreenshotCardScrollView(items: filteredScreenshotItems) { item in
+            ScreenshotCardScrollView(items: filteredScreenshotItems, isSearching: !searchText.isEmpty, onDelete: { item in
                 screenshotMonitor.delete(item)
-            }
+            })
             .transition(.opacity)
         case .meetings:
-            MeetingsTabView(controller: meetingRecorderController)
+            MeetingsTabView(controller: meetingRecorderController, searchText: searchText)
                 .transition(.opacity)
         case .notes:
-            NotesTabView(controller: notesController)
+            NotesTabView(controller: notesController, searchText: searchText)
                 .transition(.opacity)
         case .settings:
-            SettingsTabView()
+            SettingsTabView(aiSettings: meetingRecorderController.aiSettings, apiKeyStore: meetingRecorderController.apiKeyStore)
                 .transition(.opacity)
-        }
-    }
-
-    private var filteredClipboardItems: [ClipboardItem] {
-        guard !searchText.isEmpty else { return clipboardMonitor.items }
-        return clipboardMonitor.items.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText) ||
-            $0.subtitle.localizedCaseInsensitiveContains(searchText)
         }
     }
 

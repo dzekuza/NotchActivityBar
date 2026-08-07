@@ -6,7 +6,12 @@ enum LoginItemManager {
         SMAppService.mainApp.status == .enabled
     }
 
-    static func setEnabled(_ enabled: Bool) {
+    /// - Returns: the resulting `isEnabled` state after the attempt, which may
+    ///   not match `enabled` if registration/unregistration failed — callers
+    ///   updating UI state (e.g. a menu checkmark) should use this, not the
+    ///   requested value, so the UI never claims a state the system rejected.
+    @discardableResult
+    static func setEnabled(_ enabled: Bool) -> Bool {
         do {
             if enabled {
                 if SMAppService.mainApp.status != .enabled {
@@ -18,5 +23,6 @@ enum LoginItemManager {
         } catch {
             print("LoginItemManager: failed to update login item — \(error)")
         }
+        return isEnabled
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ClipboardCardScrollView: View {
     let items: [ClipboardItem]
+    var isSearching: Bool = false
     let onCopy: (ClipboardItem) -> Void
     let onDelete: (ClipboardItem) -> Void
 
@@ -9,9 +10,9 @@ struct ClipboardCardScrollView: View {
         Group {
             if items.isEmpty {
                 EmptyStateView(
-                    systemImage: "doc.on.clipboard",
-                    title: "Nothing copied yet",
-                    subtitle: "Items you copy will show up here"
+                    systemImage: isSearching ? "magnifyingglass" : "doc.on.clipboard",
+                    title: isSearching ? "No matches" : "Nothing copied yet",
+                    subtitle: isSearching ? "Try a different search" : "Items you copy will show up here"
                 )
                 .frame(width: Theme.expandedWidth)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))

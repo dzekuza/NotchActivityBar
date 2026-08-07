@@ -2,15 +2,16 @@ import SwiftUI
 
 struct MeetingCardScrollView: View {
     let sessions: [MeetingSession]
+    var isSearching: Bool = false
     let onDelete: (MeetingSession) -> Void
 
     var body: some View {
         Group {
             if sessions.isEmpty {
                 EmptyStateView(
-                    systemImage: "waveform",
-                    title: "No meetings recorded yet",
-                    subtitle: "Recording starts automatically when a call is detected"
+                    systemImage: isSearching ? "magnifyingglass" : "waveform",
+                    title: isSearching ? "No matches" : "No meetings recorded yet",
+                    subtitle: isSearching ? "Try a different search" : "Recording starts automatically when a call is detected"
                 )
                 .frame(width: Theme.expandedWidth)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))

@@ -17,6 +17,7 @@ final class NotchPanelController {
     private var idleHostingView: NSHostingView<IdleNotchHost>?
     private nonisolated(unsafe) var globalMouseMonitor: Any?
     private nonisolated(unsafe) var localMouseMonitor: Any?
+    private nonisolated(unsafe) var screenParametersObserver: Any?
     private var isClickThroughDisabled = false
     private var isHoveringExpandRegion = false
 
@@ -55,7 +56,7 @@ final class NotchPanelController {
     }
 
     func start() {
-        NotificationCenter.default.addObserver(
+        screenParametersObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main
@@ -70,6 +71,7 @@ final class NotchPanelController {
     deinit {
         if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+        if let screenParametersObserver { NotificationCenter.default.removeObserver(screenParametersObserver) }
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -169,7 +171,14 @@ final class NotchPanelController {
         expandedPanel.ignoresMouseEvents = !disabled
     }
 
-    private var mainScreen: NSScreen? { NSScreen.main }
+    /// `NSScreen.main` (the screen containing the key window) is ambiguous for
+    /// this app: it runs as a windowless `.accessory` with only non-activating
+    /// panels, so there's no key window to anchor it. Prefer the display with
+    /// a physical notch — the only screen this UI actually makes sense on —
+    /// and fall back to `.main`/the first screen for notch-less setups.
+    private var mainScreen: NSScreen? {
+        NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main ?? NSScreen.screens.first
+    }
 
     private func positionIdlePanel() {
         guard isEnabled, let screen = mainScreen else { return }

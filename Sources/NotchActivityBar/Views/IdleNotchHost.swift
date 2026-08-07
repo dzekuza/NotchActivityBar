@@ -24,7 +24,8 @@ struct IdleNotchHost: View {
         .contextMenu {
             Toggle("Launch at Login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
-                    LoginItemManager.setEnabled(newValue)
+                    let actual = LoginItemManager.setEnabled(newValue)
+                    if actual != newValue { launchAtLogin = actual }
                 }
             Divider()
             Button("Quit Notch Activity Bar") {

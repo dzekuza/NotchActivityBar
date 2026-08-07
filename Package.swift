@@ -19,6 +19,7 @@ let package = Package(
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("CoreAudio"),
                 .linkedFramework("CoreMediaIO"),
+                .linkedFramework("LinkPresentation"),
                 .linkedFramework("ScreenCaptureKit"),
                 .linkedFramework("Speech"),
                 // Embed Info.plist so the bare executable (swift run / Xcode scheme)
