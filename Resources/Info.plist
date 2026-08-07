@@ -29,10 +29,16 @@
     <key>NSCameraUsageDescription</key>
     <string>Notch Activity Bar needs camera access to claim exclusive control of the camera when you mute it, so no other app can use it.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Notch Activity Bar requires microphone access to record and transcribe live call and meeting audio.</string>
+    <string>Notch Activity Bar needs microphone access to mute the microphone for all apps, and to record and transcribe live call and meeting audio.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Notch Activity Bar requires screen recording access to capture system audio output during calls.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Notch Activity Bar uses on-device speech recognition to transcribe live call and meeting audio.</string>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/dzekuza/NotchActivityBar/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>bXVH9aehWgRmcE3f0J5o4i38w0LXyqQtoz9z8pZG5wM=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
 </dict>
 </plist>

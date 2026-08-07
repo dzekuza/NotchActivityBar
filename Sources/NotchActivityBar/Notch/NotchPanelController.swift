@@ -7,6 +7,7 @@ final class NotchPanelController {
     let clipboardMonitor = ClipboardMonitor()
     let screenshotMonitor = ScreenshotMonitor()
     let privacyGuardController = PrivacyGuardController()
+    let notesController = NotesController()
     lazy var meetingRecorderController = MeetingRecorderController()
 
     private let idlePanel: NotchPanel
@@ -17,6 +18,7 @@ final class NotchPanelController {
     private nonisolated(unsafe) var globalMouseMonitor: Any?
     private nonisolated(unsafe) var localMouseMonitor: Any?
     private var isClickThroughDisabled = false
+    private var isHoveringExpandRegion = false
 
     private var idleGeometry = NotchGeometry(width: Theme.idleWidth, height: Theme.idleHeight, hasPhysicalNotch: false)
     private var idleCornerRadius: CGFloat = 14
@@ -36,7 +38,7 @@ final class NotchPanelController {
                 screenshotMonitor: screenshotMonitor,
                 privacyGuardController: privacyGuardController,
                 meetingRecorderController: meetingRecorderController,
-                onHoverChange: { [weak self] in self?.handleExpandedHover($0) },
+                notesController: notesController,
                 onHeightChange: { [weak self] in self?.resizeExpandedPanel(to: $0) }
             )
         )
@@ -84,6 +86,7 @@ final class NotchPanelController {
             collapseTask?.cancel()
             toastTask?.cancel()
             currentToast = nil
+            isHoveringExpandRegion = false
             expandedPanel.orderOut(nil)
             idlePanel.orderOut(nil)
             clipboardMonitor.stop()
@@ -94,20 +97,23 @@ final class NotchPanelController {
         }
     }
 
-    // MARK: - Click-through gating
+    // MARK: - Hover & click-through gating
     //
     // The panels sit at `.statusBar` window level so they can render above the
-    // real menu bar / full-screen apps. Their frames include transparent
-    // padding around the visible pill/panel, and by default `ignoresMouseEvents`
-    // is `true` (set in `NotchPanel.init`) so that padding never intercepts
-    // clicks meant for Control Center or other menu bar items. This monitor
-    // watches the global cursor position and flips `ignoresMouseEvents` to
-    // `false` only while the cursor is within the currently visible panel's
-    // frame, restoring normal hover/click behavior for the notch bar itself.
+    // real menu bar / full-screen apps, and by default `ignoresMouseEvents` is
+    // `true` (set in `NotchPanel.init`) so they never intercept clicks meant
+    // for Control Center or other menu bar items. Because a panel that ignores
+    // mouse events never receives AppKit's mouseEntered/exited, SwiftUI's
+    // `onHover` can't be the source of truth for expand/collapse — it would
+    // only fire *after* this monitor has already re-enabled event delivery,
+    // one polled frame late, which is what caused the notch to visibly
+    // expand/collapse/expand on the first hover of a session. Instead this
+    // single poll loop is the only place that decides both click-through and
+    // expand/collapse, so there's exactly one source of truth per mouse move.
     private func startMouseMonitor() {
         let handler: (NSEvent) -> Void = { [weak self] _ in
             guard let self else { return }
-            Task { @MainActor in self.updateClickThrough() }
+            Task { @MainActor in self.updateHoverState() }
         }
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved], handler: handler)
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved]) { event in
@@ -116,13 +122,44 @@ final class NotchPanelController {
         }
     }
 
-    private func updateClickThrough() {
+    private func updateHoverState() {
         guard isEnabled else { return }
 
         let location = NSEvent.mouseLocation
         let overIdle = idlePanel.isVisible && idlePanel.frame.contains(location)
         let overExpanded = expandedPanel.isVisible && expandedPanel.frame.contains(location)
         setClickThroughDisabled(overIdle || overExpanded)
+
+        // Only the idle pill itself (not the extended toast/recording banner
+        // beneath it) should trigger expansion — otherwise the expanded panel
+        // would cover the banner's Stop button and swallow its clicks.
+        let overIdlePill = idlePanel.isVisible && idlePillFrame.contains(location)
+        let shouldExpand = overIdlePill || overExpanded
+        guard shouldExpand != isHoveringExpandRegion else { return }
+        isHoveringExpandRegion = shouldExpand
+
+        if shouldExpand {
+            collapseTask?.cancel()
+            guard !expandedPanel.isVisible else { return }
+            // Position at the last known size before showing so the panel never
+            // flashes at its stale/default (0,0) frame while SwiftUI's height
+            // callback catches up asynchronously.
+            applyExpandedPanelFrame(height: lastExpandedHeight, animated: false)
+            expandedPanel.orderFrontRegardless()
+            suppressNextExpandedResizeAnimation = true
+        } else {
+            scheduleCollapse()
+        }
+    }
+
+    private var idlePillFrame: NSRect {
+        let frame = idlePanel.frame
+        return NSRect(
+            x: frame.origin.x,
+            y: frame.maxY - idleGeometry.height,
+            width: frame.width,
+            height: idleGeometry.height
+        )
     }
 
     private func setClickThroughDisabled(_ disabled: Bool) {
@@ -159,9 +196,7 @@ final class NotchPanelController {
             toast: toast,
             isRecording: isRecordingBannerActive,
             liveTranscript: meetingRecorderController.activeTranscriber?.transcript ?? "",
-            pillHeight: idleGeometry.height,
-            onStopRecording: { [weak self] in self?.meetingRecorderController.toggleManually() },
-            onHoverChange: { [weak self] in self?.handleIdleHover($0) }
+            onStopRecording: { [weak self] in self?.meetingRecorderController.toggleManually() }
         )
         if let idleHostingView {
             idleHostingView.rootView = host
@@ -234,36 +269,6 @@ final class NotchPanelController {
             }
         } else {
             expandedPanel.setFrame(frame, display: true)
-        }
-    }
-
-    private func handleIdleHover(_ hovering: Bool) {
-        if hovering {
-            collapseTask?.cancel()
-            // Position at the last known size before showing so the panel never
-            // flashes at its stale/default (0,0) frame while SwiftUI's height
-            // callback catches up asynchronously.
-            applyExpandedPanelFrame(height: lastExpandedHeight, animated: false)
-            expandedPanel.orderFrontRegardless()
-            suppressNextExpandedResizeAnimation = true
-        } else {
-            // Once the expanded panel is showing, it sits on top of and fully
-            // covers the idle pill's hover region — AppKit delivers that as a
-            // mouseExited on the (now-occluded) idle panel even though the
-            // cursor never actually left the notch, which would otherwise
-            // schedule a collapse the instant the expanded panel appears.
-            // From here on, only the expanded panel's own hover (below) should
-            // drive collapse.
-            guard !expandedPanel.isVisible else { return }
-            scheduleCollapse()
-        }
-    }
-
-    private func handleExpandedHover(_ hovering: Bool) {
-        if hovering {
-            collapseTask?.cancel()
-        } else {
-            scheduleCollapse()
         }
     }
 

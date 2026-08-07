@@ -6,6 +6,7 @@ struct ExpandedPanelView: View {
     let screenshotMonitor: ScreenshotMonitor
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
+    let notesController: NotesController
     @Binding var selectedTab: AppTab
     var onHeightChange: (CGFloat) -> Void = { _ in }
 
@@ -27,6 +28,7 @@ struct ExpandedPanelView: View {
                 .clipboard: clipboardMonitor.items.count,
                 .screenshots: screenshotMonitor.items.count,
                 .meetings: meetingRecorderController.pastSessions.count,
+                .notes: notesController.notes.count,
             ])
             content
         }
@@ -102,10 +104,10 @@ struct ExpandedPanelView: View {
             }
         case .meetings:
             MeetingsTabView(controller: meetingRecorderController)
+        case .notes:
+            NotesTabView(controller: notesController)
         case .settings:
             SettingsTabView()
-        case .music, .timer:
-            PlaceholderTabView(tab: selectedTab)
         }
     }
 
@@ -126,7 +128,9 @@ struct ExpandedPanelView: View {
         switch selectedTab {
         case .clipboard:
             clipboardMonitor.clear()
-        case .screenshots, .music, .timer, .meetings, .settings:
+        case .notes:
+            notesController.clear()
+        case .screenshots, .meetings, .settings:
             break
         }
     }

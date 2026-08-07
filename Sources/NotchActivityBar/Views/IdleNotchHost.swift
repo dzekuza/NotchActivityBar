@@ -7,13 +7,7 @@ struct IdleNotchHost: View {
     var toast: NotchToast?
     var isRecording: Bool = false
     var liveTranscript: String = ""
-    /// Height of the top pill region that triggers panel expansion on hover.
-    /// While a banner (toast/recording) extends the panel downward, hovering
-    /// the banner itself must NOT expand — the expanded panel would cover the
-    /// Stop button and swallow its clicks.
-    var pillHeight: CGFloat = Theme.idleHeight
     var onStopRecording: () -> Void = {}
-    let onHoverChange: (Bool) -> Void
 
     @State private var launchAtLogin = false
 
@@ -36,12 +30,6 @@ struct IdleNotchHost: View {
             Button("Quit Notch Activity Bar") {
                 NSApp.terminate(nil)
             }
-        }
-        .overlay(alignment: .top) {
-            Color.clear
-                .frame(width: size.width, height: min(pillHeight, size.height))
-                .contentShape(Rectangle())
-                .onHover(perform: onHoverChange)
         }
     }
 }

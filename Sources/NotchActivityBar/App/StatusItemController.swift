@@ -1,15 +1,18 @@
 import AppKit
+import Sparkle
 
 @MainActor
 final class StatusItemController {
     private let statusItem: NSStatusItem
     private let panelController: NotchPanelController
+    private let updaterController: SPUStandardUpdaterController
     private let toggleItem: NSMenuItem
     private let loginItem: NSMenuItem
     private let menu: NSMenu
 
-    init(panelController: NotchPanelController) {
+    init(panelController: NotchPanelController, updaterController: SPUStandardUpdaterController) {
         self.panelController = panelController
+        self.updaterController = updaterController
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem.button {
@@ -38,6 +41,12 @@ final class StatusItemController {
 
         menu.addItem(.separator())
 
+        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        checkForUpdatesItem.target = self
+        menu.addItem(checkForUpdatesItem)
+
+        menu.addItem(.separator())
+
         let quitItem = NSMenuItem(title: "Quit Notch Activity Bar", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
@@ -55,6 +64,10 @@ final class StatusItemController {
         let newValue = !LoginItemManager.isEnabled
         LoginItemManager.setEnabled(newValue)
         loginItem.state = newValue ? .on : .off
+    }
+
+    @objc private func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 
     @objc private func quit() {

@@ -4,9 +4,15 @@ import PackageDescription
 let package = Package(
     name: "NotchActivityBar",
     platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.5"),
+    ],
     targets: [
         .executableTarget(
             name: "NotchActivityBar",
+            dependencies: [
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Sources/NotchActivityBar",
             swiftSettings: [.swiftLanguageMode(.v6)],
             linkerSettings: [

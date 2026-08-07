@@ -5,7 +5,7 @@ struct ExpandedPanelHost: View {
     let screenshotMonitor: ScreenshotMonitor
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
-    let onHoverChange: (Bool) -> Void
+    let notesController: NotesController
     let onHeightChange: (CGFloat) -> Void
 
     @State private var selectedTab: AppTab = .clipboard
@@ -16,10 +16,10 @@ struct ExpandedPanelHost: View {
             screenshotMonitor: screenshotMonitor,
             privacyGuardController: privacyGuardController,
             meetingRecorderController: meetingRecorderController,
+            notesController: notesController,
             selectedTab: $selectedTab,
             onHeightChange: onHeightChange
         )
-        .onHover(perform: onHoverChange)
         .onChange(of: meetingRecorderController.isRecording) { _, isRecording in
             if isRecording {
                 selectedTab = .meetings

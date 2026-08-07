@@ -1,9 +1,15 @@
 import AppKit
+import Sparkle
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelController: NotchPanelController?
     private var statusItemController: StatusItemController?
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -12,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController = controller
         controller.start()
 
-        statusItemController = StatusItemController(panelController: controller)
+        statusItemController = StatusItemController(panelController: controller, updaterController: updaterController)
 
         DispatchQueue.main.async {
             NSApp.windows
