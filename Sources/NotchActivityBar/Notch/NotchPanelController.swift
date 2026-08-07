@@ -83,14 +83,31 @@ final class NotchPanelController {
             screenshotMonitor.start()
             meetingRecorderController.start()
             positionIdlePanel()
+            idlePanel.alphaValue = 0
             idlePanel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.22
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                idlePanel.animator().alphaValue = 1
+            }
         } else {
             collapseTask?.cancel()
             toastTask?.cancel()
             currentToast = nil
             isHoveringExpandRegion = false
+            expandedPanel.alphaValue = 1
             expandedPanel.orderOut(nil)
-            idlePanel.orderOut(nil)
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                idlePanel.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.idlePanel.orderOut(nil)
+                    self.idlePanel.alphaValue = 1
+                }
+            })
             clipboardMonitor.stop()
             screenshotMonitor.stop()
             meetingRecorderController.stop()
@@ -143,14 +160,25 @@ final class NotchPanelController {
         if shouldExpand {
             collapseTask?.cancel()
             guard !expandedPanel.isVisible else { return }
-            // Position at the last known size before showing so the panel never
-            // flashes at its stale/default (0,0) frame while SwiftUI's height
-            // callback catches up asynchronously.
-            applyExpandedPanelFrame(height: lastExpandedHeight, animated: false)
-            expandedPanel.orderFrontRegardless()
-            suppressNextExpandedResizeAnimation = true
+            presentExpandedPanel()
         } else {
             scheduleCollapse()
+        }
+    }
+
+    private func presentExpandedPanel() {
+        // Position at the last known size before showing so the panel never
+        // flashes at its stale/default (0,0) frame while SwiftUI's height
+        // callback catches up asynchronously.
+        applyExpandedPanelFrame(height: lastExpandedHeight, animated: false)
+        expandedPanel.alphaValue = 0
+        expandedPanel.orderFrontRegardless()
+        suppressNextExpandedResizeAnimation = true
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            expandedPanel.animator().alphaValue = 1
         }
     }
 
@@ -191,8 +219,15 @@ final class NotchPanelController {
     /// Recomputes the idle panel height from the current accessory state:
     /// extended while a toast or the recording banner is showing.
     private func refreshIdlePanel(animated: Bool) {
-        let extended = currentToast != nil || isRecordingBannerActive
-        let height = idleGeometry.height + (extended ? Theme.toastExtraHeight : 0)
+        let extra: CGFloat
+        if currentToast != nil {
+            extra = Theme.toastGap + Theme.toastPillHeight
+        } else if isRecordingBannerActive {
+            extra = Theme.toastGap + Theme.recordingPillHeight
+        } else {
+            extra = 0
+        }
+        let height = idleGeometry.height + extra
         applyIdlePanelState(width: idleGeometry.width, height: height, toast: currentToast, animated: animated)
     }
 
@@ -286,7 +321,22 @@ final class NotchPanelController {
         collapseTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(220))
             guard !Task.isCancelled else { return }
-            self?.expandedPanel.orderOut(nil)
+            self?.dismissExpandedPanel()
         }
+    }
+
+    private func dismissExpandedPanel() {
+        guard expandedPanel.isVisible else { return }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.16
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            expandedPanel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.expandedPanel.orderOut(nil)
+                self.expandedPanel.alphaValue = 1
+            }
+        })
     }
 }

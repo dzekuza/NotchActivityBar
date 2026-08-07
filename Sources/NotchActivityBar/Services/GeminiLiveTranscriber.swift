@@ -41,6 +41,15 @@ final class GeminiLiveTranscriber: NSObject, LiveTranscriber {
     private var isReconnecting = false
     private var shouldStayConnected = false
 
+    /// Whether this connection attempt has ever received *any* server
+    /// message — proof the setup message was accepted. If every attempt
+    /// dies before this happens, the server is rejecting our setup (bad
+    /// model/config/key), not hitting a transient network blip, so we stop
+    /// retrying and surface the error instead of looping silently forever.
+    private var hasReceivedServerMessage = false
+    private var consecutiveFailedAttempts = 0
+    private static let maxConsecutiveFailedAttempts = 3
+
     init(apiKey: String, languageCode: String = "", model: String = "models/gemini-3.1-flash-live-preview") {
         self.apiKey = apiKey
         self.languageCode = languageCode
@@ -66,11 +75,12 @@ final class GeminiLiveTranscriber: NSObject, LiveTranscriber {
 
     func send(pcmChunk: Data) {
         guard let webSocketTask else { return }
+        // `realtimeInput.mediaChunks` was removed server-side (confirmed via a
+        // close-code 1007 "media_chunks is deprecated. Use audio, video, or
+        // text instead." rejection) — `audio` is the current field.
         let message: [String: Any] = [
             "realtimeInput": [
-                "mediaChunks": [
-                    ["mimeType": "audio/pcm;rate=16000", "data": pcmChunk.base64EncodedString()],
-                ],
+                "audio": ["mimeType": "audio/pcm;rate=16000", "data": pcmChunk.base64EncodedString()],
             ],
         ]
         sendJSON(message, over: webSocketTask)
@@ -82,12 +92,14 @@ final class GeminiLiveTranscriber: NSObject, LiveTranscriber {
             return
         }
 
+        hasReceivedServerMessage = false
         let session = URLSession(configuration: .default)
         urlSession = session
         let task = session.webSocketTask(with: url)
         webSocketTask = task
         task.resume()
 
+        NSLog("GeminiLiveTranscriber: opening socket, model=\(model), attempt=\(consecutiveFailedAttempts + 1)")
         sendSetup()
         receiveNext()
         isConnected = true
@@ -143,11 +155,15 @@ final class GeminiLiveTranscriber: NSObject, LiveTranscriber {
             guard let self else { return }
             switch result {
             case .failure(let error):
+                let closeCode = webSocketTask.closeCode
+                let closeReason = webSocketTask.closeReason.flatMap { String(data: $0, encoding: .utf8) }
                 Task { @MainActor in
-                    self.handleSocketFailure(error.localizedDescription)
+                    self.handleSocketFailure(error.localizedDescription, closeCode: closeCode, closeReason: closeReason)
                 }
             case .success(let message):
                 Task { @MainActor in
+                    self.hasReceivedServerMessage = true
+                    self.consecutiveFailedAttempts = 0
                     self.handle(message: message)
                     self.receiveNext()
                 }
@@ -155,12 +171,31 @@ final class GeminiLiveTranscriber: NSObject, LiveTranscriber {
         }
     }
 
-    private func handleSocketFailure(_ description: String) {
+    private func handleSocketFailure(_ description: String, closeCode: URLSessionWebSocketTask.CloseCode = .invalid, closeReason: String? = nil) {
         isConnected = false
         webSocketTask = nil
         urlSession = nil
         guard shouldStayConnected else { return }
-        NSLog("GeminiLiveTranscriber: socket failure — \(description); reconnecting=\(resumptionHandle != nil)")
+
+        NSLog("GeminiLiveTranscriber: socket failure — \(description); closeCode=\(closeCode.rawValue) closeReason=\(closeReason ?? "nil"); everConnected=\(hasReceivedServerMessage); attempt=\(consecutiveFailedAttempts)")
+
+        // An explicit close reason means the server told us exactly what was
+        // wrong with our request (bad field, invalid argument, etc.) — that
+        // will fail identically on every retry, so stop immediately instead
+        // of looping. A close with no reason (dropped connection, DNS
+        // hiccup, etc.) is worth a few retries since it may be transient.
+        if let closeReason, !closeReason.isEmpty {
+            shouldStayConnected = false
+            lastError = "Gemini Live rejected the connection: \(closeReason)"
+            return
+        }
+
+        consecutiveFailedAttempts += 1
+        if consecutiveFailedAttempts >= Self.maxConsecutiveFailedAttempts {
+            shouldStayConnected = false
+            lastError = "Gemini Live never accepted the connection (closeCode=\(closeCode.rawValue)) — check the API key and model access at aistudio.google.com."
+            return
+        }
         reconnect()
     }
 
