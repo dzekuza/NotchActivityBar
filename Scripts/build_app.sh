@@ -18,7 +18,10 @@ DEV_SIGN_IDENTITY="Apple Development: Rysard Gvozdovic (SYWA449RD8)"
 # Distribution signing identity — required for --release (Developer ID + notarization).
 # Create this once via Xcode > Settings > Accounts > Manage Certificates > "+" >
 # "Developer ID Application", or at developer.apple.com/account/resources/certificates.
-DIST_SIGN_IDENTITY="Developer ID Application: Rysard Gvozdovic (5679JUAZRH)"
+# Pinned to a SHA-1 hash (not the display name) because the keychain holds two
+# valid "Developer ID Application: Rysard Gvozdovic" certs (a 2027 and a 2031
+# one) and codesign refuses to pick between identically-named identities.
+DIST_SIGN_IDENTITY="88BB73A48DD827E9E9EA28A6596225F7BA4DBA84"
 
 # Notarytool keychain profile name — create once with:
 #   xcrun notarytool store-credentials "notch-activity-bar-notary" \
