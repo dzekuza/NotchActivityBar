@@ -7,6 +7,7 @@ final class NotchPanelController {
     let clipboardMonitor = ClipboardMonitor()
     let screenshotMonitor = ScreenshotMonitor()
     let privacyGuardController = PrivacyGuardController()
+    let quickNotesController = QuickNotesController()
     lazy var meetingRecorderController = MeetingRecorderController()
 
     private let idlePanel: NotchPanel
@@ -36,6 +37,7 @@ final class NotchPanelController {
                 screenshotMonitor: screenshotMonitor,
                 privacyGuardController: privacyGuardController,
                 meetingRecorderController: meetingRecorderController,
+                quickNotesController: quickNotesController,
                 onHoverChange: { [weak self] in self?.handleExpandedHover($0) },
                 onHeightChange: { [weak self] in self?.resizeExpandedPanel(to: $0) }
             )

@@ -6,6 +6,7 @@ struct ExpandedPanelView: View {
     let screenshotMonitor: ScreenshotMonitor
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
+    let quickNotesController: QuickNotesController
     @Binding var selectedTab: AppTab
     var onHeightChange: (CGFloat) -> Void = { _ in }
 
@@ -25,6 +26,7 @@ struct ExpandedPanelView: View {
             persistentLiveBanner
             TabPillBarView(selection: $selectedTab, counts: [
                 .clipboard: clipboardMonitor.items.count,
+                .notes: quickNotesController.notes.count,
                 .screenshots: screenshotMonitor.items.count,
                 .meetings: meetingRecorderController.pastSessions.count,
             ])
@@ -96,6 +98,8 @@ struct ExpandedPanelView: View {
             } onDelete: { item in
                 clipboardMonitor.delete(item)
             }
+        case .notes:
+            QuickNotesTabView(controller: quickNotesController)
         case .screenshots:
             ScreenshotCardScrollView(items: filteredScreenshotItems) { item in
                 screenshotMonitor.delete(item)
@@ -104,8 +108,6 @@ struct ExpandedPanelView: View {
             MeetingsTabView(controller: meetingRecorderController)
         case .settings:
             SettingsTabView()
-        case .music, .timer:
-            PlaceholderTabView(tab: selectedTab)
         }
     }
 
@@ -126,7 +128,9 @@ struct ExpandedPanelView: View {
         switch selectedTab {
         case .clipboard:
             clipboardMonitor.clear()
-        case .screenshots, .music, .timer, .meetings, .settings:
+        case .notes:
+            quickNotesController.clear()
+        case .screenshots, .meetings, .settings:
             break
         }
     }

@@ -92,19 +92,25 @@ struct ClipboardCardView: View {
                     .overlay { Image(systemName: "photo").foregroundStyle(Theme.tertiaryText) }
             }
         case .link:
-            Theme.cardBackground
-                .overlay(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: "link")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Theme.amber)
-                        Text(item.title)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.primaryText)
-                            .lineLimit(3)
+            if let url = item.linkURL {
+                LinkPreviewView(url: url)
+                    .frame(width: Theme.cardWidth, height: Theme.cardImageHeight)
+                    .background(Theme.cardBackground)
+            } else {
+                Theme.cardBackground
+                    .overlay(alignment: .topLeading) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Image(systemName: "link")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Theme.amber)
+                            Text(item.title)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Theme.primaryText)
+                                .lineLimit(3)
+                        }
+                        .padding(10)
                     }
-                    .padding(10)
-                }
+            }
         case .text:
             Theme.cardBackground
                 .overlay(alignment: .topLeading) {
@@ -118,12 +124,7 @@ struct ClipboardCardView: View {
     }
 
     private var metaLabel: String {
-        switch item.kind {
-        case .color: "Color"
-        case .image: "Image"
-        case .link: "Link"
-        case .text: "Text"
-        }
+        item.folder.rawValue
     }
 
     private func copy() {

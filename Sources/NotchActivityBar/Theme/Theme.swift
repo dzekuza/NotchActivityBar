@@ -27,7 +27,7 @@ enum Theme {
     static let toastExtraHeight: CGFloat = 32
     static let toastDuration: Double = 1.8
     static let fallbackMenuBarHeight: CGFloat = 24
-    static let expandedWidth: CGFloat = 820
+    static let expandedWidth: CGFloat = 560
     static let expandedMaxHeight: CGFloat = 480
     static let cardWidth: CGFloat = 150
     static let cardImageHeight: CGFloat = 130

@@ -5,6 +5,7 @@ struct ExpandedPanelHost: View {
     let screenshotMonitor: ScreenshotMonitor
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
+    let quickNotesController: QuickNotesController
     let onHoverChange: (Bool) -> Void
     let onHeightChange: (CGFloat) -> Void
 
@@ -16,6 +17,7 @@ struct ExpandedPanelHost: View {
             screenshotMonitor: screenshotMonitor,
             privacyGuardController: privacyGuardController,
             meetingRecorderController: meetingRecorderController,
+            quickNotesController: quickNotesController,
             selectedTab: $selectedTab,
             onHeightChange: onHeightChange
         )

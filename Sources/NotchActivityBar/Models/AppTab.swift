@@ -1,8 +1,7 @@
 enum AppTab: String, CaseIterable, Identifiable {
     case clipboard = "Clipboard"
+    case notes = "Notes"
     case meetings = "Meetings"
-    case music = "Music"
-    case timer = "Timer"
     case screenshots = "Screenshots"
     case settings = "Settings"
 
