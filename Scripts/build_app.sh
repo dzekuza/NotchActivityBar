@@ -162,7 +162,41 @@ if [ "$RELEASE" = "1" ]; then
     spctl --assess --type execute --verbose=4 "$APP_BUNDLE"
 
     echo "Creating DMG for distribution..."
-    hdiutil create -volname "$APP_NAME" -srcfolder "$APP_BUNDLE" -ov -format UDZO "$DMG_PATH"
+    DMG_STAGING="$DIST_DIR/dmg-staging"
+    DMG_RW_PATH="$DIST_DIR/$APP_NAME-rw.dmg"
+    rm -rf "$DMG_STAGING" "$DMG_RW_PATH"
+    mkdir -p "$DMG_STAGING"
+    ditto "$APP_BUNDLE" "$DMG_STAGING/$APP_NAME.app"
+    ln -s /Applications "$DMG_STAGING/Applications"
+
+    hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDRW -fs HFS+ "$DMG_RW_PATH"
+
+    MOUNT_DIR=$(hdiutil attach "$DMG_RW_PATH" -readwrite -noverify -noautoopen | tail -1 | awk -F '\t' '{print $NF}')
+
+    osascript <<OSASCRIPT
+tell application "Finder"
+    tell disk "$APP_NAME"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set the bounds of container window to {200, 120, 760, 460}
+        set viewOptions to the icon view options of container window
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 128
+        set position of item "$APP_NAME.app" of container window to {140, 160}
+        set position of item "Applications" of container window to {420, 160}
+        close
+        open
+        update without registering applications
+        delay 1
+    end tell
+end tell
+OSASCRIPT
+
+    hdiutil detach "$MOUNT_DIR"
+    hdiutil convert "$DMG_RW_PATH" -format UDZO -ov -o "$DMG_PATH"
+    rm -rf "$DMG_RW_PATH" "$DMG_STAGING"
 
     VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$ROOT_DIR/Resources/Info.plist")
     TAG="v$VERSION"
