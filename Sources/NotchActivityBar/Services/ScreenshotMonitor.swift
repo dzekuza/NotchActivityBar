@@ -28,6 +28,39 @@ final class ScreenshotMonitor: NSObject {
         )
 
         query.start()
+        requestProtectedFolderAccessIfNeeded()
+    }
+
+    /// Screenshots default-save to ~/Desktop, but users can retarget the location
+    /// (`defaults write com.apple.screencapture location ...`, or the Screenshot app's
+    /// Options menu) to somewhere else — often ~/Documents, ~/Downloads, or a custom
+    /// folder. Desktop/Documents/Downloads are all TCC-protected: Spotlight silently
+    /// omits their contents from query results for any app that hasn't been granted
+    /// access, with no prompt shown. As with mic/camera/speech (see PermissionPrompt),
+    /// this accessory app has no key window to attach that consent alert to, so the
+    /// very first protected-folder read must happen while briefly promoted to a
+    /// regular, active app. We warm all of the standard protected folders plus
+    /// whatever custom location is currently configured.
+    private func requestProtectedFolderAccessIfNeeded() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var candidates = [
+            home.appendingPathComponent("Desktop"),
+            home.appendingPathComponent("Documents"),
+            home.appendingPathComponent("Downloads"),
+        ]
+        if let configuredPath = CFPreferencesCopyAppValue(
+            "location" as CFString, "com.apple.screencapture" as CFString
+        ) as? String {
+            candidates.append(URL(fileURLWithPath: (configuredPath as NSString).expandingTildeInPath))
+        }
+
+        PermissionPrompt.activate()
+        Task.detached(priority: .utility) {
+            for url in candidates {
+                _ = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+            }
+            await MainActor.run { PermissionPrompt.restore() }
+        }
     }
 
     func stop() {
