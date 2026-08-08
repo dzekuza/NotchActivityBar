@@ -236,6 +236,7 @@ final class NotchPanelController {
 
         let host = IdleNotchHost(
             size: CGSize(width: width, height: height),
+            pillHeight: idleGeometry.height,
             cornerRadius: idleCornerRadius,
             toast: toast,
             isRecording: isRecordingBannerActive,

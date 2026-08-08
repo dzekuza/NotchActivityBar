@@ -3,6 +3,7 @@ import SwiftUI
 
 struct IdleNotchHost: View {
     var size: CGSize = CGSize(width: Theme.idleWidth, height: Theme.idleHeight)
+    var pillHeight: CGFloat = Theme.idleHeight
     var cornerRadius: CGFloat = 14
     var toast: NotchToast?
     var isRecording: Bool = false
@@ -14,6 +15,7 @@ struct IdleNotchHost: View {
     var body: some View {
         IdleNotchView(
             size: size,
+            pillHeight: pillHeight,
             cornerRadius: cornerRadius,
             toast: toast,
             isRecording: isRecording,

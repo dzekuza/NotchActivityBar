@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IdleNotchView: View {
     var size: CGSize = CGSize(width: Theme.idleWidth, height: Theme.idleHeight)
+    var pillHeight: CGFloat = Theme.idleHeight
     var cornerRadius: CGFloat = 14
     var toast: NotchToast?
     var isRecording: Bool = false
@@ -12,7 +13,7 @@ struct IdleNotchView: View {
         ZStack(alignment: .top) {
             NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: cornerRadius)
                 .fill(Theme.panelBackground)
-                .frame(width: size.width, height: Theme.idleHeight)
+                .frame(width: size.width, height: pillHeight)
                 .overlay(alignment: .center) {
                     Circle()
                         .fill(Theme.amber)
@@ -26,13 +27,13 @@ struct IdleNotchView: View {
             // standing in for the flat background while a recording is live.
             if toast == nil, isRecording {
                 recordingPill
-                    .padding(.top, Theme.idleHeight + Theme.toastGap)
+                    .padding(.top, pillHeight + Theme.toastGap)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             if let toast {
                 toastPill(toast)
-                    .padding(.top, Theme.idleHeight + Theme.toastGap)
+                    .padding(.top, pillHeight + Theme.toastGap)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
