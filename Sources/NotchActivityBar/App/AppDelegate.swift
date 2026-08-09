@@ -29,5 +29,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         panelController?.privacyGuardController.setMuted(false)
+        panelController?.claudeSessionsController.stop()
     }
 }

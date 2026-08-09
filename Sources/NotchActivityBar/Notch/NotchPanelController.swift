@@ -9,6 +9,7 @@ final class NotchPanelController {
     let privacyGuardController = PrivacyGuardController()
     let notesController = NotesController()
     lazy var meetingRecorderController = MeetingRecorderController()
+    let claudeSessionsController = ClaudeSessionsController()
 
     private let idlePanel: NotchPanel
     private let expandedPanel: NotchPanel
@@ -40,6 +41,7 @@ final class NotchPanelController {
                 privacyGuardController: privacyGuardController,
                 meetingRecorderController: meetingRecorderController,
                 notesController: notesController,
+                claudeSessionsController: claudeSessionsController,
                 onHeightChange: { [weak self] in self?.resizeExpandedPanel(to: $0) }
             )
         )
@@ -111,6 +113,7 @@ final class NotchPanelController {
             clipboardMonitor.stop()
             screenshotMonitor.stop()
             meetingRecorderController.stop()
+            claudeSessionsController.stop()
             privacyGuardController.setMuted(false)
             setClickThroughDisabled(false)
         }

@@ -7,6 +7,7 @@ struct ExpandedPanelView: View {
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
     let notesController: NotesController
+    let claudeSessionsController: ClaudeSessionsController
     @Binding var selectedTab: AppTab
     var onHeightChange: (CGFloat) -> Void = { _ in }
 
@@ -29,6 +30,7 @@ struct ExpandedPanelView: View {
                 .screenshots: screenshotMonitor.items.count,
                 .meetings: meetingRecorderController.pastSessions.count,
                 .notes: notesController.notes.count,
+                .claudeSessions: claudeSessionsController.ownedAgents.count,
             ])
             content
                 .frame(width: Theme.expandedWidth)
@@ -112,6 +114,9 @@ struct ExpandedPanelView: View {
         case .notes:
             NotesTabView(controller: notesController, searchText: searchText)
                 .transition(.opacity)
+        case .claudeSessions:
+            ClaudeSessionsTabView(controller: claudeSessionsController, searchText: searchText)
+                .transition(.opacity)
         case .settings:
             SettingsTabView(aiSettings: meetingRecorderController.aiSettings, apiKeyStore: meetingRecorderController.apiKeyStore)
                 .transition(.opacity)
@@ -129,7 +134,7 @@ struct ExpandedPanelView: View {
             clipboardMonitor.clear()
         case .notes:
             notesController.clear()
-        case .screenshots, .meetings, .settings:
+        case .screenshots, .meetings, .settings, .claudeSessions:
             break
         }
     }
