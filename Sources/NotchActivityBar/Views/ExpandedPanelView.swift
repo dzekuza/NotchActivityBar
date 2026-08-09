@@ -8,6 +8,7 @@ struct ExpandedPanelView: View {
     let meetingRecorderController: MeetingRecorderController
     let notesController: NotesController
     let claudeSessionsController: ClaudeSessionsController
+    let onCheckForUpdates: () -> Void
     @Binding var selectedTab: AppTab
     var onHeightChange: (CGFloat) -> Void = { _ in }
 
@@ -118,7 +119,11 @@ struct ExpandedPanelView: View {
             ClaudeSessionsTabView(controller: claudeSessionsController, searchText: searchText)
                 .transition(.opacity)
         case .settings:
-            SettingsTabView(aiSettings: meetingRecorderController.aiSettings, apiKeyStore: meetingRecorderController.apiKeyStore)
+            SettingsTabView(
+                aiSettings: meetingRecorderController.aiSettings,
+                apiKeyStore: meetingRecorderController.apiKeyStore,
+                onCheckForUpdates: onCheckForUpdates
+            )
                 .transition(.opacity)
         }
     }

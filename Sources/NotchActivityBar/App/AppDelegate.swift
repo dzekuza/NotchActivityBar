@@ -14,7 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let controller = NotchPanelController()
+        let controller = NotchPanelController(onCheckForUpdates: { [weak self] in
+            self?.updaterController.checkForUpdates(nil)
+        })
         panelController = controller
         controller.start()
 

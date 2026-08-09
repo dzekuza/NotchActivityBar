@@ -30,7 +30,7 @@ final class NotchPanelController {
     private var lastExpandedHeight: CGFloat = Theme.idleHeight
     private var suppressNextExpandedResizeAnimation = false
 
-    init() {
+    init(onCheckForUpdates: @escaping () -> Void) {
         idlePanel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: Theme.idleWidth, height: Theme.idleHeight))
         expandedPanel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: Theme.expandedWidth, height: Theme.idleHeight))
 
@@ -42,6 +42,7 @@ final class NotchPanelController {
                 meetingRecorderController: meetingRecorderController,
                 notesController: notesController,
                 claudeSessionsController: claudeSessionsController,
+                onCheckForUpdates: onCheckForUpdates,
                 onHeightChange: { [weak self] in self?.resizeExpandedPanel(to: $0) }
             )
         )

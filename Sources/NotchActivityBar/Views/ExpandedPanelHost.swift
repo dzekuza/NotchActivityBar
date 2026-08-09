@@ -7,6 +7,7 @@ struct ExpandedPanelHost: View {
     let meetingRecorderController: MeetingRecorderController
     let notesController: NotesController
     let claudeSessionsController: ClaudeSessionsController
+    let onCheckForUpdates: () -> Void
     let onHeightChange: (CGFloat) -> Void
 
     @State private var selectedTab: AppTab = .clipboard
@@ -19,6 +20,7 @@ struct ExpandedPanelHost: View {
             meetingRecorderController: meetingRecorderController,
             notesController: notesController,
             claudeSessionsController: claudeSessionsController,
+            onCheckForUpdates: onCheckForUpdates,
             selectedTab: $selectedTab,
             onHeightChange: onHeightChange
         )
