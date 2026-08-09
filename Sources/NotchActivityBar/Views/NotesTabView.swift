@@ -32,7 +32,11 @@ struct NotesTabView: View {
                         controller.delete(note)
                         expandedNote = nil
                     },
-                    onClose: { expandedNote = nil }
+                    onClose: { expandedNote = nil },
+                    onSave: { newText in
+                        controller.update(note, text: newText)
+                        expandedNote?.text = newText
+                    }
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
