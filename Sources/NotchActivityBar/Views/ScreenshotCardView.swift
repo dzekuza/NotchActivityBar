@@ -3,7 +3,9 @@ import SwiftUI
 
 struct ScreenshotCardView: View {
     let item: ScreenshotItem
+    let extractionState: ScreenshotExtractionState?
     let onDelete: () -> Void
+    let onExtractText: () -> Void
 
     @State private var isHovering = false
 
@@ -62,6 +64,28 @@ struct ScreenshotCardView: View {
                 .buttonStyle(.plain)
                 .padding(6)
                 .transition(.opacity)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if isHovering || extractionState != nil {
+                Button(action: onExtractText) {
+                    Group {
+                        if extractionState == .loading {
+                            ProgressView()
+                                .controlSize(.mini)
+                        } else {
+                            Image(systemName: "text.viewfinder")
+                                .font(.system(size: 9, weight: .bold))
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: 18, height: 18)
+                    .background(Circle().fill(Theme.overlayChipBackground))
+                }
+                .buttonStyle(.plain)
+                .padding(6)
+                .transition(.opacity)
+                .help("Extract text and links")
             }
         }
         .scaleEffect(isHovering ? 1.02 : 1.0)

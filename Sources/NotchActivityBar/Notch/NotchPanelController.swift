@@ -42,7 +42,18 @@ final class NotchPanelController {
                 meetingRecorderController: meetingRecorderController,
                 notesController: notesController,
                 claudeSessionsController: claudeSessionsController,
-                onCheckForUpdates: onCheckForUpdates,
+                onCheckForUpdates: { [weak self] in
+                    // The notch panels sit at `.statusBar` level (always on
+                    // top, even above normal windows) so Sparkle's update
+                    // window would otherwise render hidden behind them and
+                    // the app-modal session it runs blocks all other event
+                    // delivery — reading as a total freeze. Collapse the
+                    // panel and bring the app forward first so Sparkle's UI
+                    // can actually appear and receive input.
+                    self?.dismissExpandedPanel()
+                    NSApp.activate(ignoringOtherApps: true)
+                    onCheckForUpdates()
+                },
                 onHeightChange: { [weak self] in self?.resizeExpandedPanel(to: $0) }
             )
         )

@@ -41,26 +41,46 @@ struct NotesTabView: View {
     }
 
     private var inputRow: some View {
-        HStack(spacing: 8) {
-            TextField("Quick note…", text: $draft, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .foregroundStyle(Theme.primaryText)
-                .lineLimit(1...4)
-                .focused($isInputFocused)
-                .onSubmit(commit)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous))
+        VStack(alignment: .trailing, spacing: 6) {
+            ZStack(alignment: .topLeading) {
+                if draft.isEmpty {
+                    Text("Quick note…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.tertiaryText)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 15)
+                        .allowsHitTesting(false)
+                }
 
-            Button("Add", action: commit)
-                .buttonStyle(.plain)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Theme.tertiaryText : Theme.primaryText)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Capsule().fill(Theme.inactiveTabBackground))
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                TextEditor(text: $draft)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.primaryText)
+                    .scrollContentBackground(.hidden)
+                    .focused($isInputFocused)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .onKeyPress(.return, phases: .down) { press in
+                        guard press.modifiers.contains(.command) else { return .ignored }
+                        commit()
+                        return .handled
+                    }
+            }
+            .frame(height: 64)
+            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous))
+
+            HStack(spacing: 6) {
+                Text("⌘⏎ to save")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.tertiaryText)
+                Button("Add", action: commit)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Theme.tertiaryText : Theme.primaryText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.inactiveTabBackground))
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
         }
         .padding(.horizontal, 20)
     }

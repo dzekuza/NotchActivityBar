@@ -1,9 +1,12 @@
+import AppKit
 import SwiftUI
 
 struct NoteDetailOverlay: View {
     let note: NoteItem
     let onDelete: () -> Void
     let onClose: () -> Void
+
+    @State private var showCopiedConfirmation = false
 
     var body: some View {
         ZStack {
@@ -20,6 +23,20 @@ struct NoteDetailOverlay: View {
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(Theme.tertiaryText)
                     Spacer()
+                    if showCopiedConfirmation {
+                        Text("Copied")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.secondaryText)
+                            .transition(.opacity)
+                    }
+                    Button(action: copyToClipboard) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.primaryText)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(Theme.overlayButtonBackground))
+                    }
+                    .buttonStyle(.plain)
                     Button(action: onDelete) {
                         Image(systemName: "trash")
                             .font(.system(size: 11, weight: .semibold))
@@ -58,6 +75,19 @@ struct NoteDetailOverlay: View {
                 RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous)
                     .strokeBorder(Theme.cardBorderHover, lineWidth: 1)
             }
+        }
+        .animation(.easeOut(duration: 0.15), value: showCopiedConfirmation)
+    }
+
+    private func copyToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(note.text, forType: .string)
+
+        showCopiedConfirmation = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            showCopiedConfirmation = false
         }
     }
 }

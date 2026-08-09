@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct NoteCardView: View {
@@ -6,10 +7,7 @@ struct NoteCardView: View {
     var onExpand: () -> Void = {}
 
     @State private var isHovering = false
-
-    private var isLong: Bool {
-        note.text.count > 90 || note.text.filter { $0 == "\n" }.count >= 4
-    }
+    @State private var showCopiedConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,15 +20,34 @@ struct NoteCardView: View {
                         .padding(10)
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    if isLong && isHovering {
-                        Button(action: onExpand) {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 18, height: 18)
-                                .background(Circle().fill(Theme.overlayChipBackground))
+                    if isHovering {
+                        HStack(spacing: 6) {
+                            if showCopiedConfirmation {
+                                Text("Copied")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Theme.overlayChipBackground))
+                                    .transition(.opacity)
+                            }
+                            Button(action: copyToClipboard) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 18, height: 18)
+                                    .background(Circle().fill(Theme.overlayChipBackground))
+                            }
+                            .buttonStyle(.plain)
+                            Button(action: onExpand) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 18, height: 18)
+                                    .background(Circle().fill(Theme.overlayChipBackground))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                         .padding(6)
                         .transition(.opacity)
                     }
@@ -84,8 +101,24 @@ struct NoteCardView: View {
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .onHover { isHovering = $0 }
         .contentShape(Rectangle())
-        .onTapGesture {
-            if isLong { onExpand() }
+        .onTapGesture(perform: onExpand)
+        .contextMenu {
+            Button("Copy", action: copyToClipboard)
+            Button("Open", action: onExpand)
+            Divider()
+            Button("Delete", role: .destructive, action: onDelete)
+        }
+    }
+
+    private func copyToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(note.text, forType: .string)
+
+        showCopiedConfirmation = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            showCopiedConfirmation = false
         }
     }
 }
