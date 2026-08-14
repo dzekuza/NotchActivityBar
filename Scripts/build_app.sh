@@ -21,7 +21,7 @@ DEV_SIGN_IDENTITY="Apple Development: Rysard Gvozdovic (SYWA449RD8)"
 # Pinned to a SHA-1 hash (not the display name) because the keychain holds two
 # valid "Developer ID Application: Rysard Gvozdovic" certs (a 2027 and a 2031
 # one) and codesign refuses to pick between identically-named identities.
-DIST_SIGN_IDENTITY="88BB73A48DD827E9E9EA28A6596225F7BA4DBA84"
+DIST_SIGN_IDENTITY="0615662DF591ED01904D50F128307AA40E019CE9"
 
 # Notarytool keychain profile name — create once with:
 #   xcrun notarytool store-credentials "notch-activity-bar-notary" \

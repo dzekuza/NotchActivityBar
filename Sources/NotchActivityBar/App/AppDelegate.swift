@@ -14,7 +14,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let controller = NotchPanelController()
+        let controller = NotchPanelController(onCheckForUpdates: { [weak self] in
+            self?.updaterController.checkForUpdates(nil)
+        })
         panelController = controller
         controller.start()
 
@@ -37,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             await panelController.meetingRecorderController.stopAndWaitForPersistence()
             panelController.privacyGuardController.setMuted(false)
+            panelController.claudeSessionsController.stop()
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

@@ -16,6 +16,13 @@ final class NotesController {
         persist()
     }
 
+    func update(_ note: NoteItem, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let index = notes.firstIndex(where: { $0.id == note.id }) else { return }
+        notes[index].text = trimmed
+        persist()
+    }
+
     func delete(_ note: NoteItem) {
         notes.removeAll { $0.id == note.id }
         persist()

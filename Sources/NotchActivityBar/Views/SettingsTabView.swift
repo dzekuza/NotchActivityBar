@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsTabView: View {
     let aiSettings: MeetingAISettings
     let apiKeyStore: GeminiAPIKeyStore
+    let onCheckForUpdates: () -> Void
 
     @State private var deviceManager = AudioDeviceManager.shared
     @State private var keyInput = ""
@@ -181,6 +182,24 @@ struct SettingsTabView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Software Update")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+
+                Button(action: onCheckForUpdates) {
+                    Text("Check for Updates…")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.primaryText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.inactiveTabBackground))
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 20)

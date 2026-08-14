@@ -7,10 +7,13 @@ struct ExpandedPanelView: View {
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
     let notesController: NotesController
+    let claudeSessionsController: ClaudeSessionsController
+    let onCheckForUpdates: () -> Void
     @Binding var selectedTab: AppTab
     var onHeightChange: (CGFloat) -> Void = { _ in }
 
     @State private var searchText = ""
+    @State private var expandedScreenshotExtraction: ScreenshotItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,6 +32,7 @@ struct ExpandedPanelView: View {
                 .screenshots: screenshotMonitor.items.count,
                 .meetings: meetingRecorderController.pastSessions.count,
                 .notes: notesController.notes.count,
+                .claudeSessions: claudeSessionsController.ownedAgents.count,
             ])
             content
                 .frame(width: Theme.expandedWidth)
@@ -57,6 +61,19 @@ struct ExpandedPanelView: View {
         // mismatch between the two animations reads as growth on both the
         // top and bottom edges instead of just the bottom.
         .frame(maxHeight: .infinity, alignment: .top)
+        .overlay {
+            if let item = expandedScreenshotExtraction {
+                ScreenshotExtractionOverlay(
+                    item: item,
+                    state: screenshotMonitor.extractionStates[item.url],
+                    hasAPIKey: meetingRecorderController.apiKeyStore.hasKey,
+                    onClose: { expandedScreenshotExtraction = nil },
+                    onRetry: { beginExtraction(for: item) }
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.snappy(duration: 0.2), value: expandedScreenshotExtraction)
     }
 
     @ViewBuilder
@@ -102,9 +119,16 @@ struct ExpandedPanelView: View {
             ClipboardTabView(monitor: clipboardMonitor, searchText: searchText)
                 .transition(.opacity)
         case .screenshots:
-            ScreenshotCardScrollView(items: filteredScreenshotItems, isSearching: !searchText.isEmpty, onDelete: { item in
-                screenshotMonitor.delete(item)
-            })
+            ScreenshotCardScrollView(
+                items: filteredScreenshotItems,
+                isSearching: !searchText.isEmpty,
+                extractionStates: screenshotMonitor.extractionStates,
+                onDelete: { item in screenshotMonitor.delete(item) },
+                onExtractText: { item in
+                    expandedScreenshotExtraction = item
+                    beginExtraction(for: item)
+                }
+            )
             .transition(.opacity)
         case .meetings:
             MeetingsTabView(controller: meetingRecorderController, searchText: searchText)
@@ -112,8 +136,15 @@ struct ExpandedPanelView: View {
         case .notes:
             NotesTabView(controller: notesController, searchText: searchText)
                 .transition(.opacity)
+        case .claudeSessions:
+            ClaudeSessionsTabView(controller: claudeSessionsController, searchText: searchText)
+                .transition(.opacity)
         case .settings:
-            SettingsTabView(aiSettings: meetingRecorderController.aiSettings, apiKeyStore: meetingRecorderController.apiKeyStore)
+            SettingsTabView(
+                aiSettings: meetingRecorderController.aiSettings,
+                apiKeyStore: meetingRecorderController.apiKeyStore,
+                onCheckForUpdates: onCheckForUpdates
+            )
                 .transition(.opacity)
         }
     }
@@ -123,13 +154,19 @@ struct ExpandedPanelView: View {
         return screenshotMonitor.items.filter { $0.appName.localizedCaseInsensitiveContains(searchText) }
     }
 
+    private func beginExtraction(for item: ScreenshotItem) {
+        guard let apiKey = meetingRecorderController.apiKeyStore.apiKey, !apiKey.isEmpty else { return }
+        if case .success = screenshotMonitor.extractionStates[item.url] { return }
+        screenshotMonitor.extractText(for: item, apiKey: apiKey)
+    }
+
     private func clearActiveTab() {
         switch selectedTab {
         case .clipboard:
             clipboardMonitor.clear()
         case .notes:
             notesController.clear()
-        case .screenshots, .meetings, .settings:
+        case .screenshots, .meetings, .settings, .claudeSessions:
             break
         }
     }

@@ -9,6 +9,7 @@ final class NotchPanelController {
     let privacyGuardController = PrivacyGuardController()
     let notesController = NotesController()
     lazy var meetingRecorderController = MeetingRecorderController()
+    let claudeSessionsController = ClaudeSessionsController()
 
     private let idlePanel: NotchPanel
     private let expandedPanel: NotchPanel
@@ -29,7 +30,7 @@ final class NotchPanelController {
     private var lastExpandedHeight: CGFloat = Theme.idleHeight
     private var suppressNextExpandedResizeAnimation = false
 
-    init() {
+    init(onCheckForUpdates: @escaping () -> Void) {
         idlePanel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: Theme.idleWidth, height: Theme.idleHeight))
         expandedPanel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: Theme.expandedWidth, height: Theme.idleHeight))
 
@@ -40,6 +41,19 @@ final class NotchPanelController {
                 privacyGuardController: privacyGuardController,
                 meetingRecorderController: meetingRecorderController,
                 notesController: notesController,
+                claudeSessionsController: claudeSessionsController,
+                onCheckForUpdates: { [weak self] in
+                    // The notch panels sit at `.statusBar` level (always on
+                    // top, even above normal windows) so Sparkle's update
+                    // window would otherwise render hidden behind them and
+                    // the app-modal session it runs blocks all other event
+                    // delivery — reading as a total freeze. Collapse the
+                    // panel and bring the app forward first so Sparkle's UI
+                    // can actually appear and receive input.
+                    self?.dismissExpandedPanel()
+                    NSApp.activate(ignoringOtherApps: true)
+                    onCheckForUpdates()
+                },
                 onHeightChange: { [weak self] in self?.resizeExpandedPanel(to: $0) }
             )
         )
@@ -111,6 +125,7 @@ final class NotchPanelController {
             clipboardMonitor.stop()
             screenshotMonitor.stop()
             meetingRecorderController.stop()
+            claudeSessionsController.stop()
             privacyGuardController.setMuted(false)
             setClickThroughDisabled(false)
         }

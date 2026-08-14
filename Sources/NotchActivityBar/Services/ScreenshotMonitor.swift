@@ -7,6 +7,7 @@ import Observation
 @Observable
 final class ScreenshotMonitor: NSObject {
     private(set) var items: [ScreenshotItem] = []
+    private(set) var extractionStates: [URL: ScreenshotExtractionState] = [:]
     var onNewItem: ((ScreenshotItem) -> Void)?
 
     private let query = NSMetadataQuery()
@@ -158,6 +159,33 @@ final class ScreenshotMonitor: NSObject {
         } catch {
             NSLog("ScreenshotMonitor: failed to trash \(item.url.path) — \(error.localizedDescription)")
         }
+    }
+
+    /// Extracts verbatim text (and any links found in it) from a screenshot
+    /// via Gemini vision. Results are cached per-URL for the lifetime of the
+    /// app so reopening the same screenshot's detail overlay doesn't re-spend
+    /// an API call.
+    func extractText(for item: ScreenshotItem, apiKey: String) {
+        guard extractionStates[item.url] != .loading else { return }
+        extractionStates[item.url] = .loading
+        let url = item.url
+
+        Task {
+            do {
+                let imageData = try await Task.detached(priority: .utility) { try Data(contentsOf: url) }.value
+                let rawText = try await GeminiVisionService.extractText(imageData: imageData, apiKey: apiKey)
+                let links = Self.detectLinks(in: rawText)
+                self.extractionStates[url] = .success(text: rawText, links: links)
+            } catch {
+                self.extractionStates[url] = .failure(error.localizedDescription)
+            }
+        }
+    }
+
+    private static func detectLinks(in text: String) -> [URL] {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return detector.matches(in: text, range: range).compactMap(\.url)
     }
 
     @objc private func handleQueryUpdate(_ notification: Notification) {

@@ -3,7 +3,9 @@ import SwiftUI
 struct ScreenshotCardScrollView: View {
     let items: [ScreenshotItem]
     var isSearching: Bool = false
+    let extractionStates: [URL: ScreenshotExtractionState]
     let onDelete: (ScreenshotItem) -> Void
+    let onExtractText: (ScreenshotItem) -> Void
 
     var body: some View {
         Group {
@@ -19,9 +21,12 @@ struct ScreenshotCardScrollView: View {
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 12) {
                         ForEach(items) { item in
-                            ScreenshotCardView(item: item) {
-                                onDelete(item)
-                            }
+                            ScreenshotCardView(
+                                item: item,
+                                extractionState: extractionStates[item.url],
+                                onDelete: { onDelete(item) },
+                                onExtractText: { onExtractText(item) }
+                            )
                             .transition(.scale(scale: 0.85).combined(with: .opacity))
                         }
                     }

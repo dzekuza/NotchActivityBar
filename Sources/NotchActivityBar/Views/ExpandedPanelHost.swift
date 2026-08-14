@@ -6,6 +6,8 @@ struct ExpandedPanelHost: View {
     let privacyGuardController: PrivacyGuardController
     let meetingRecorderController: MeetingRecorderController
     let notesController: NotesController
+    let claudeSessionsController: ClaudeSessionsController
+    let onCheckForUpdates: () -> Void
     let onHeightChange: (CGFloat) -> Void
 
     @State private var selectedTab: AppTab = .clipboard
@@ -17,12 +19,19 @@ struct ExpandedPanelHost: View {
             privacyGuardController: privacyGuardController,
             meetingRecorderController: meetingRecorderController,
             notesController: notesController,
+            claudeSessionsController: claudeSessionsController,
+            onCheckForUpdates: onCheckForUpdates,
             selectedTab: $selectedTab,
             onHeightChange: onHeightChange
         )
         .onChange(of: meetingRecorderController.isRecording) { _, isRecording in
             if isRecording {
                 selectedTab = .meetings
+            }
+        }
+        .onChange(of: selectedTab) { _, newValue in
+            if newValue == .claudeSessions {
+                claudeSessionsController.start()
             }
         }
     }
