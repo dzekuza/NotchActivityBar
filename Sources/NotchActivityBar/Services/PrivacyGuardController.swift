@@ -16,6 +16,14 @@ final class PrivacyGuardController {
     private var hoggedCameraDeviceIDs: [CMIODeviceID] = []
     private var muteRequestToken = 0
 
+    /// `applicationWillTerminate` never fires on a force-quit or crash, which
+    /// would otherwise leave the mic hardware-muted/silenced system-wide with
+    /// no obvious cause. We persist the mute strategy to disk while engaged so
+    /// the *next* launch can detect an unclean shutdown and restore it.
+    init() {
+        Self.recoverFromUncleanShutdownIfNeeded()
+    }
+
     func toggle() {
         setMuted(!isMuted)
     }
@@ -28,6 +36,7 @@ final class PrivacyGuardController {
 
         if muted {
             micMuteStrategy = Self.muteDefaultInputDevice()
+            Self.persistPendingRestore(micMuteStrategy)
 
             // CMIO won't enumerate real camera devices for a process that hasn't
             // been granted Camera access, so hog-mode claims silently no-op until
@@ -46,7 +55,69 @@ final class PrivacyGuardController {
             Self.releaseCameraDevices(hoggedCameraDeviceIDs)
             micMuteStrategy = nil
             hoggedCameraDeviceIDs = []
+            Self.clearPendingRestore()
         }
+    }
+
+    // MARK: - Crash-safe mic restore
+
+    private enum PendingRestoreKeys {
+        static let kind = "PrivacyGuardPendingRestoreKind"
+        static let deviceID = "PrivacyGuardPendingRestoreDeviceID"
+        static let previousMute = "PrivacyGuardPendingRestorePreviousMute"
+        static let previousVolume = "PrivacyGuardPendingRestorePreviousVolume"
+    }
+
+    private static func persistPendingRestore(_ strategy: MicMuteStrategy?) {
+        let defaults = UserDefaults.standard
+        guard let strategy else {
+            clearPendingRestore()
+            return
+        }
+        switch strategy {
+        case .hardwareMute(let device, let previous):
+            defaults.set("hardwareMute", forKey: PendingRestoreKeys.kind)
+            defaults.set(Int(device), forKey: PendingRestoreKeys.deviceID)
+            defaults.set(previous, forKey: PendingRestoreKeys.previousMute)
+        case .volumeZero(let device, let previous):
+            defaults.set("volumeZero", forKey: PendingRestoreKeys.kind)
+            defaults.set(Int(device), forKey: PendingRestoreKeys.deviceID)
+            defaults.set(Double(previous), forKey: PendingRestoreKeys.previousVolume)
+        }
+    }
+
+    private static func clearPendingRestore() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: PendingRestoreKeys.kind)
+        defaults.removeObject(forKey: PendingRestoreKeys.deviceID)
+        defaults.removeObject(forKey: PendingRestoreKeys.previousMute)
+        defaults.removeObject(forKey: PendingRestoreKeys.previousVolume)
+    }
+
+    /// Runs once at launch. If a mute strategy is still recorded, the previous
+    /// run never cleanly called `setMuted(false)` (crash or force-quit) — restore
+    /// the mic to its pre-guard state now. The recorded device ID may no longer
+    /// be the default input (or may not exist at all, e.g. USB mic unplugged);
+    /// in that case there's nothing meaningful left to restore, so just clear it.
+    private static func recoverFromUncleanShutdownIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard let kind = defaults.string(forKey: PendingRestoreKeys.kind) else { return }
+        defer { clearPendingRestore() }
+
+        let deviceID = AudioDeviceID(defaults.integer(forKey: PendingRestoreKeys.deviceID))
+        guard deviceID != 0 else { return }
+
+        switch kind {
+        case "hardwareMute":
+            let previous = defaults.bool(forKey: PendingRestoreKeys.previousMute)
+            restoreDefaultInputDevice(strategy: .hardwareMute(device: deviceID, previous: previous))
+        case "volumeZero":
+            let previous = Float32(defaults.double(forKey: PendingRestoreKeys.previousVolume))
+            restoreDefaultInputDevice(strategy: .volumeZero(device: deviceID, previous: previous))
+        default:
+            break
+        }
+        NSLog("PrivacyGuardController: restored mic after an unclean shutdown left it muted")
     }
 
     private static func ensureCameraAuthorization() async -> Bool {

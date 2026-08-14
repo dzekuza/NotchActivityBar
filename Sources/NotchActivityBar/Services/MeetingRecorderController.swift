@@ -29,7 +29,10 @@ final class MeetingRecorderController {
     private var carriedOverTranscript = ""
 
     init() {
-        pastSessions = MeetingSessionStore.loadAll()
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.pastSessions = await MeetingSessionStore.loadAll()
+        }
     }
 
     func start() {
@@ -66,8 +69,8 @@ final class MeetingRecorderController {
     }
 
     func deleteSession(_ session: MeetingSession) {
-        MeetingSessionStore.delete(session)
         pastSessions.removeAll { $0.id == session.id }
+        Task { await MeetingSessionStore.delete(session) }
     }
 
     private static func ensureMicrophoneAuthorization() async -> Bool {
@@ -97,8 +100,12 @@ final class MeetingRecorderController {
         capture.onPCMChunk = { [weak self] data in
             self?.activeTranscriber?.send(pcmChunk: data)
         }
-        capture.onStreamStopped = { [weak self] in
-            self?.stopRecording()
+        capture.onStreamStopped = { [weak self] error in
+            guard let self else { return }
+            if let error {
+                self.lastError = "Recording stopped — \(error.localizedDescription)"
+            }
+            self.stopRecording()
         }
 
         audioCapture = capture
@@ -131,19 +138,35 @@ final class MeetingRecorderController {
     }
 
     private func stopRecording() {
-        guard isRecording || audioCapture != nil else { return }
+        guard let session = teardownRecording() else { return }
+        Task { await MeetingSessionStore.save(session) }
+        requestSummary(for: session)
+    }
+
+    /// Used from app-quit paths, where the process may exit before a
+    /// fire-and-forget `Task` from `stopRecording()` gets to write the
+    /// session to disk — this awaits the save so it's guaranteed to land.
+    func stopAndWaitForPersistence() async {
+        callActivityDetector.stop()
+        guard let session = teardownRecording() else { return }
+        await MeetingSessionStore.save(session)
+    }
+
+    @discardableResult
+    private func teardownRecording() -> MeetingSession? {
+        guard isRecording || audioCapture != nil else { return nil }
 
         audioCapture?.stop()
         audioCapture = nil
 
+        var persistedSession: MeetingSession?
         if var session = currentSession {
             session.endedAt = Date()
             let liveTranscript = activeTranscriber?.transcript ?? ""
             let rawTranscript = (carriedOverTranscript + liveTranscript).trimmingCharacters(in: .whitespacesAndNewlines)
             session.transcript = rawTranscript.isEmpty ? "Audio recording completed" : rawTranscript
-            MeetingSessionStore.save(session)
             pastSessions.insert(session, at: 0)
-            requestSummary(for: session)
+            persistedSession = session
         }
         currentSession = nil
         carriedOverTranscript = ""
@@ -153,6 +176,7 @@ final class MeetingRecorderController {
 
         isRecording = false
         onRecordingStateChange?(false)
+        return persistedSession
     }
 
     private func makeTranscriber() -> any LiveTranscriber {
@@ -209,7 +233,7 @@ final class MeetingRecorderController {
                 let summary = try await GeminiSummaryService.summarize(transcript: transcript, apiKey: apiKey)
                 var updated = session
                 updated.summary = summary
-                MeetingSessionStore.save(updated)
+                await MeetingSessionStore.save(updated)
                 if let index = self.pastSessions.firstIndex(where: { $0.id == session.id }) {
                     self.pastSessions[index] = updated
                 }

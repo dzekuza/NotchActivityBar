@@ -11,7 +11,17 @@ enum NotesStore {
 
     static func load() -> [NoteItem] {
         guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        return (try? JSONDecoder().decode([NoteItem].self, from: data)) ?? []
+        if let notes = try? JSONDecoder().decode([NoteItem].self, from: data) {
+            return notes
+        }
+        // Decoding failed (partial write, disk corruption, unreadable future
+        // format, etc.) — preserve the unreadable file instead of letting the
+        // next `save()` silently overwrite it with an empty array.
+        let backupURL = fileURL.deletingPathExtension().appendingPathExtension("corrupted.json")
+        try? FileManager.default.removeItem(at: backupURL)
+        try? FileManager.default.copyItem(at: fileURL, to: backupURL)
+        NSLog("NotesStore: failed to decode \(fileURL.path) — backed up to \(backupURL.path)")
+        return []
     }
 
     static func save(_ notes: [NoteItem]) {

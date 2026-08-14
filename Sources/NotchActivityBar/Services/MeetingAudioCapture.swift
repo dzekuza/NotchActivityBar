@@ -26,9 +26,11 @@ final class MeetingAudioCapture: NSObject {
     var onPCMChunk: ((Data) -> Void)?
 
     /// Invoked when the system ends the capture externally (e.g. the user
-    /// clicks "Stop Sharing" in the menu bar screen-capture indicator), so the
-    /// owner can tear down the rest of the recording session.
-    var onStreamStopped: (() -> Void)?
+    /// clicks "Stop Sharing" in the menu bar screen-capture indicator, Screen
+    /// Recording permission is revoked, or the captured display disconnects),
+    /// so the owner can tear down the rest of the recording session. `error`
+    /// carries the reason when known, so the owner can surface it to the user.
+    var onStreamStopped: ((Error?) -> Void)?
 
     private let outputFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
     private let mixIntervalSeconds: Double = 0.1
@@ -193,7 +195,7 @@ extension MeetingAudioCapture: SCStreamDelegate {
         Task { @MainActor in
             guard let current = self.stream, ObjectIdentifier(current) == stoppedStreamID else { return }
             self.stream = nil
-            self.onStreamStopped?()
+            self.onStreamStopped?(error)
         }
     }
 }

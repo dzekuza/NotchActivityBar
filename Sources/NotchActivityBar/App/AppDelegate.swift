@@ -27,7 +27,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        panelController?.privacyGuardController.setMuted(false)
+    /// Persist any in-progress meeting transcript instead of discarding it, and
+    /// wait for the write to actually land before the process exits — a
+    /// fire-and-forget `Task` from a plain `applicationWillTerminate` could be
+    /// killed mid-write once this method returns and macOS proceeds to quit.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let panelController else { return .terminateNow }
+
+        Task { @MainActor in
+            await panelController.meetingRecorderController.stopAndWaitForPersistence()
+            panelController.privacyGuardController.setMuted(false)
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }

@@ -1,4 +1,5 @@
 @preconcurrency import AppKit
+import Darwin
 import Observation
 @preconcurrency import QuickLookThumbnailing
 
@@ -12,6 +13,7 @@ final class ScreenshotMonitor: NSObject {
     private let historyLimit = 12
     private var manuallyDeletedURLs: Set<URL> = []
     private var hasFinishedInitialGather = false
+    private var folderWatchSources: [DispatchSourceFileSystemObject] = []
 
     func start() {
         query.predicate = NSPredicate(format: "kMDItemIsScreenCapture == 1")
@@ -26,9 +28,97 @@ final class ScreenshotMonitor: NSObject {
             self, selector: #selector(handleQueryUpdate),
             name: .NSMetadataQueryDidUpdate, object: query
         )
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(handleScreenCapturePreferencesChanged),
+            name: Notification.Name("com.apple.screencapture.updateLocation"), object: nil
+        )
 
         query.start()
         requestProtectedFolderAccessIfNeeded()
+        startFolderWatchFallback()
+    }
+
+    /// `NSMetadataQuery`/Spotlight is the primary detection path, but it can
+    /// miss files indefinitely if Spotlight indexing is disabled for the
+    /// volume/folder (Spotlight Privacy pane) or if iCloud Desktop & Documents
+    /// sync delays/relocates the file — independent of TCC folder access being
+    /// granted. As a fallback that doesn't depend on Spotlight at all, watch
+    /// the candidate folders directly for writes and pick up any new file the
+    /// `screencapture` tool has tagged with its own xattr.
+    private func startFolderWatchFallback() {
+        for source in folderWatchSources { source.cancel() }
+        folderWatchSources.removeAll()
+
+        for folder in screenshotCandidateFolders() {
+            let fd = open(folder.path, O_EVTONLY)
+            guard fd >= 0 else { continue }
+            let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
+            source.setEventHandler { [weak self] in
+                Task { @MainActor in self?.scanForMissedScreenshots(in: folder) }
+            }
+            source.setCancelHandler { close(fd) }
+            source.resume()
+            folderWatchSources.append(source)
+        }
+    }
+
+    private func screenshotCandidateFolders() -> [URL] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var candidates = [
+            home.appendingPathComponent("Desktop"),
+            home.appendingPathComponent("Documents"),
+            home.appendingPathComponent("Downloads"),
+        ]
+        if let configuredPath = CFPreferencesCopyAppValue(
+            "location" as CFString, "com.apple.screencapture" as CFString
+        ) as? String {
+            candidates.append(URL(fileURLWithPath: (configuredPath as NSString).expandingTildeInPath))
+        }
+        return candidates
+    }
+
+    private func scanForMissedScreenshots(in folder: URL) {
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]
+        ) else { return }
+
+        let known = Set(items.map(\.url)).union(manuallyDeletedURLs)
+        for url in entries where !known.contains(url) {
+            guard Self.isScreenCaptureFile(url) else { continue }
+            let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
+            let item = ScreenshotItem(id: url, url: url, appName: appName(for: url), capturedAt: date, thumbnail: nil)
+
+            items.insert(item, at: 0)
+            items = Array(items.prefix(historyLimit))
+            loadThumbnails(for: [item])
+            if hasFinishedInitialGather {
+                onNewItem?(item)
+            }
+        }
+    }
+
+    /// `screencapture` tags every file it writes with this xattr regardless of
+    /// whether Spotlight ever indexes it, so reading it directly is a reliable,
+    /// Spotlight-independent way to confirm a file is really a screenshot (as
+    /// opposed to any other file dropped into a watched folder).
+    private static func isScreenCaptureFile(_ url: URL) -> Bool {
+        let name = "com.apple.metadata:kMDItemIsScreenCapture"
+        let size = getxattr(url.path, name, nil, 0, 0, 0)
+        guard size > 0 else { return false }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard getxattr(url.path, name, &buffer, size, 0, 0) > 0 else { return false }
+        let value = try? PropertyListSerialization.propertyList(from: Data(buffer), options: [], format: nil)
+        return (value as? Bool) ?? (value as? NSNumber)?.boolValue ?? false
+    }
+
+    /// The user can retarget the screenshot save folder at any time (System
+    /// Settings, the Screenshot app's Options menu, or `defaults write
+    /// com.apple.screencapture location ...`) while the app keeps running.
+    /// Without re-warming, the newly configured folder's contents stay
+    /// invisible to Spotlight for this app with no visible failure.
+    @objc private func handleScreenCapturePreferencesChanged(_ notification: Notification) {
+        requestProtectedFolderAccessIfNeeded()
+        startFolderWatchFallback()
     }
 
     /// Screenshots default-save to ~/Desktop, but users can retarget the location
@@ -42,18 +132,7 @@ final class ScreenshotMonitor: NSObject {
     /// regular, active app. We warm all of the standard protected folders plus
     /// whatever custom location is currently configured.
     private func requestProtectedFolderAccessIfNeeded() {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        var candidates = [
-            home.appendingPathComponent("Desktop"),
-            home.appendingPathComponent("Documents"),
-            home.appendingPathComponent("Downloads"),
-        ]
-        if let configuredPath = CFPreferencesCopyAppValue(
-            "location" as CFString, "com.apple.screencapture" as CFString
-        ) as? String {
-            candidates.append(URL(fileURLWithPath: (configuredPath as NSString).expandingTildeInPath))
-        }
-
+        let candidates = screenshotCandidateFolders()
         PermissionPrompt.activate()
         Task.detached(priority: .utility) {
             for url in candidates {
@@ -66,6 +145,9 @@ final class ScreenshotMonitor: NSObject {
     func stop() {
         query.stop()
         NotificationCenter.default.removeObserver(self)
+        DistributedNotificationCenter.default().removeObserver(self)
+        for source in folderWatchSources { source.cancel() }
+        folderWatchSources.removeAll()
     }
 
     func delete(_ item: ScreenshotItem) {

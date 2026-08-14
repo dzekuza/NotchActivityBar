@@ -25,6 +25,13 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
 
+    /// Text already finalized by a recognition task we tore down and replaced
+    /// (see `reconnectAfterStall`), so restarting recognition doesn't drop what
+    /// was already transcribed before the stall.
+    private var committedTranscript = ""
+    private var reconnectAttempts = 0
+    private let maxReconnectAttempts = 3
+
     func connect() {
         guard recognitionRequest == nil else { return }
 
@@ -50,7 +57,7 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     }
 
     private func startRecognition() {
-        let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) ?? SFSpeechRecognizer()
+        let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer()
         guard let recognizer, recognizer.isAvailable else {
             lastError = "Speech recognizer unavailable"
             NSLog("AppleSpeechTranscriber: recognizer unavailable")
@@ -80,13 +87,23 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
                 guard let self else { return }
                 if let text {
                     NSLog("AppleSpeechTranscriber: partial result — \(text)")
-                    self.transcript = text
+                    self.transcript = self.committedTranscript.isEmpty ? text : self.committedTranscript + " " + text
+                    self.reconnectAttempts = 0
                 }
                 if let nsError {
                     // Recognizer cancellation (from our own disconnect()) surfaces as
                     // an error too — ignore it once we've already torn down.
                     guard self.recognitionRequest != nil else { return }
                     NSLog("AppleSpeechTranscriber: recognition error domain=\(nsError.domain) code=\(nsError.code) description=\(nsError.localizedDescription)")
+                    if !isFinal {
+                        // The task died without ever delivering a final result — left
+                        // as-is, `send(pcmChunk:)` would keep appending audio into a
+                        // request producing no further callbacks, silently freezing
+                        // the transcript for the rest of the recording. Restart a
+                        // fresh recognition task, carrying over what we already have.
+                        self.reconnectAfterStall(errorDescription: nsError.localizedDescription)
+                        return
+                    }
                     self.lastError = nsError.localizedDescription
                 }
                 if isFinal {
@@ -106,10 +123,31 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
         recognitionTask = nil
         recognizer = nil
         isConnected = false
+        reconnectAttempts = 0
     }
 
     func resetTranscript() {
         transcript = ""
+        committedTranscript = ""
+    }
+
+    private func reconnectAfterStall(errorDescription: String) {
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionRequest = nil
+        recognitionTask = nil
+        recognizer = nil
+
+        guard reconnectAttempts < maxReconnectAttempts else {
+            NSLog("AppleSpeechTranscriber: giving up after \(reconnectAttempts) reconnect attempts")
+            lastError = "Speech recognition stopped — \(errorDescription)"
+            isConnected = false
+            return
+        }
+        reconnectAttempts += 1
+        committedTranscript = transcript
+        NSLog("AppleSpeechTranscriber: recognition task stalled (\(errorDescription)) — reconnecting, attempt \(reconnectAttempts)")
+        startRecognition()
     }
 
     func send(pcmChunk: Data) {
