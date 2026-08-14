@@ -9,6 +9,8 @@ struct IdleNotchView: View {
     var liveTranscript: String = ""
     var onStopRecording: () -> Void = {}
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack(alignment: .top) {
             NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: cornerRadius)
@@ -37,8 +39,8 @@ struct IdleNotchView: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: toast)
-        .animation(.easeInOut(duration: 0.2), value: isRecording)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: toast)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isRecording)
         .frame(width: size.width, height: size.height, alignment: .top)
     }
 

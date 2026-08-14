@@ -15,6 +15,8 @@ struct ExpandedPanelView: View {
     @State private var searchText = ""
     @State private var expandedScreenshotExtraction: ScreenshotItem?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SearchBarView(
@@ -73,7 +75,7 @@ struct ExpandedPanelView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.snappy(duration: 0.2), value: expandedScreenshotExtraction)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: expandedScreenshotExtraction)
     }
 
     @ViewBuilder

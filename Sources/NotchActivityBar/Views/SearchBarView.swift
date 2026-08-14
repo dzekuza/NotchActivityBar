@@ -57,6 +57,7 @@ struct SearchBarView: View {
                     .background(Circle().fill(Theme.inactiveTabBackground))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Clear all")
 
             iconButton(
                 systemImage: "power",
@@ -81,5 +82,6 @@ struct SearchBarView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 }

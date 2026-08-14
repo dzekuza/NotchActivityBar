@@ -1,6 +1,9 @@
 import AppKit
 import QuartzCore
 import SwiftUI
+import os
+
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NotchActivityBar", category: "Panel")
 
 @MainActor
 final class NotchPanelController {
@@ -29,6 +32,8 @@ final class NotchPanelController {
     private(set) var isEnabled = false
     private var lastExpandedHeight: CGFloat = Theme.idleHeight
     private var suppressNextExpandedResizeAnimation = false
+
+    private var reduceMotionEnabled: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
     init(onCheckForUpdates: @escaping () -> Void) {
         idlePanel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: Theme.idleWidth, height: Theme.idleHeight))
@@ -100,7 +105,7 @@ final class NotchPanelController {
             idlePanel.alphaValue = 0
             idlePanel.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.22
+                context.duration = reduceMotionEnabled ? 0 : 0.22
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 idlePanel.animator().alphaValue = 1
             }
@@ -112,7 +117,7 @@ final class NotchPanelController {
             expandedPanel.alphaValue = 1
             expandedPanel.orderOut(nil)
             NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.18
+                context.duration = reduceMotionEnabled ? 0 : 0.18
                 context.timingFunction = CAMediaTimingFunction(name: .easeIn)
                 idlePanel.animator().alphaValue = 0
             }, completionHandler: { [weak self] in
@@ -189,9 +194,10 @@ final class NotchPanelController {
         expandedPanel.alphaValue = 0
         expandedPanel.orderFrontRegardless()
         suppressNextExpandedResizeAnimation = true
+        log.info("Expanded panel opened, height: \(self.lastExpandedHeight)")
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
+            context.duration = reduceMotionEnabled ? 0 : 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             expandedPanel.animator().alphaValue = 1
         }
@@ -274,7 +280,7 @@ final class NotchPanelController {
         )
         if animated {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.28
+                context.duration = reduceMotionEnabled ? 0 : 0.28
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 idlePanel.animator().setFrame(frame, display: true)
             }
@@ -323,7 +329,7 @@ final class NotchPanelController {
         )
         if animated {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.18
+                context.duration = reduceMotionEnabled ? 0 : 0.18
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 expandedPanel.animator().setFrame(frame, display: true)
             }
@@ -343,8 +349,9 @@ final class NotchPanelController {
 
     private func dismissExpandedPanel() {
         guard expandedPanel.isVisible else { return }
+        log.info("Expanded panel closed.")
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.16
+            context.duration = reduceMotionEnabled ? 0 : 0.16
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             expandedPanel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in

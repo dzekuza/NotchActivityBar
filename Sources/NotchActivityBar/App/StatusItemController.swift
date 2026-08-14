@@ -64,6 +64,14 @@ final class StatusItemController {
         let requested = !LoginItemManager.isEnabled
         let actual = LoginItemManager.setEnabled(requested)
         loginItem.state = actual ? .on : .off
+
+        if requested != actual {
+            let alert = NSAlert()
+            alert.messageText = "Couldn't update Launch at Login"
+            alert.informativeText = "Please try again, or check that Notch Activity Bar has permission to manage login items in System Settings."
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
     }
 
     @objc private func checkForUpdates() {

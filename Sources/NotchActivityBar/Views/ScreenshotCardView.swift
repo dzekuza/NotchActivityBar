@@ -64,6 +64,7 @@ struct ScreenshotCardView: View {
                 .buttonStyle(.plain)
                 .padding(6)
                 .transition(.opacity)
+                .accessibilityLabel("Delete screenshot")
             }
         }
         .overlay(alignment: .topLeading) {
@@ -86,6 +87,7 @@ struct ScreenshotCardView: View {
                 .padding(6)
                 .transition(.opacity)
                 .help("Extract text and links")
+                .accessibilityLabel("Extract text and links")
             }
         }
         .scaleEffect(isHovering ? 1.02 : 1.0)

@@ -68,6 +68,7 @@ struct MeetingCardView: View {
                 .buttonStyle(.plain)
                 .padding(6)
                 .transition(.opacity)
+                .accessibilityLabel("Delete meeting")
             }
         }
         .scaleEffect(isHovering ? 1.02 : 1.0)

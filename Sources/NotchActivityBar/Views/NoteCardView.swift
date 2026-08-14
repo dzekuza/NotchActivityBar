@@ -39,6 +39,7 @@ struct NoteCardView: View {
                                     .background(Circle().fill(Theme.overlayChipBackground))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Copy note")
                             Button(action: onExpand) {
                                 Image(systemName: "arrow.up.left.and.arrow.down.right")
                                     .font(.system(size: 9, weight: .bold))
@@ -47,6 +48,7 @@ struct NoteCardView: View {
                                     .background(Circle().fill(Theme.overlayChipBackground))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Expand note")
                         }
                         .padding(6)
                         .transition(.opacity)
@@ -95,6 +97,7 @@ struct NoteCardView: View {
                 .buttonStyle(.plain)
                 .padding(6)
                 .transition(.opacity)
+                .accessibilityLabel("Delete note")
             }
         }
         .scaleEffect(isHovering ? 1.02 : 1.0)

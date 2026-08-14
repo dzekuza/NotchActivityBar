@@ -32,6 +32,11 @@ let package = Package(
                     "-Xlinker", "Resources/Info.plist",
                 ]),
             ]
-        )
+        ),
+        .testTarget(
+            name: "NotchActivityBarTests",
+            dependencies: ["NotchActivityBar"],
+            path: "Tests/NotchActivityBarTests"
+        ),
     ]
 )

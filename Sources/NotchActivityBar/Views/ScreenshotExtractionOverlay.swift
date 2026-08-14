@@ -31,6 +31,7 @@ struct ScreenshotExtractionOverlay: View {
                             .background(Circle().fill(Theme.overlayButtonBackground))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 14)

@@ -4,6 +4,9 @@ import CoreAudio
 import CoreMedia
 import Foundation
 import ScreenCaptureKit
+import os
+
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NotchActivityBar", category: "Audio")
 
 /// Captures both sides of a call: system audio output (what you hear — the other
 /// participant, via ScreenCaptureKit's audio-only capture) and the microphone
@@ -37,26 +40,29 @@ final class MeetingAudioCapture: NSObject {
 
     private let audioEngine = AVAudioEngine()
     private var micConverter: AVAudioConverter?
+    private let systemConverterCache = AudioConverterCache()
     private var stream: SCStream?
     private var streamOutput: SystemAudioStreamOutput?
 
     private let micRing = PCMRingBuffer(maxSamples: 16_000 * 5)
     private let systemRing = PCMRingBuffer(maxSamples: 16_000 * 5)
-    private var mixTimer: Timer?
+    private var mixSource: DispatchSourceTimer?
+    private var mixBuffer: [Int16] = []
 
     func start(inputDeviceID: AudioDeviceID? = nil) async throws {
         try startMicCapture(inputDeviceID: inputDeviceID)
         do {
             try await startSystemAudioCapture()
+            log.info("System audio capture started.")
         } catch {
-            NSLog("MeetingAudioCapture: system audio capture unavailable (\(error.localizedDescription)) — proceeding with mic capture only.")
+            log.error("System audio capture failed: \(error.localizedDescription, privacy: .public) — proceeding with mic capture only.")
         }
         startMixTimer()
     }
 
     func stop() {
-        mixTimer?.invalidate()
-        mixTimer = nil
+        mixSource?.cancel()
+        mixSource = nil
 
         audioEngine.inputNode.removeTap(onBus: 0)
         audioEngine.stop()
@@ -121,8 +127,9 @@ final class MeetingAudioCapture: NSObject {
 
         let ring = systemRing
         let targetFormat = outputFormat
+        let converterCache = systemConverterCache
         let output = SystemAudioStreamOutput { pcmBuffer in
-            guard let converter = AVAudioConverter(from: pcmBuffer.format, to: targetFormat),
+            guard let converter = converterCache.converter(for: pcmBuffer.format, to: targetFormat),
                   let samples = Self.convert(pcmBuffer, using: converter, targetFormat: targetFormat)
             else { return }
             ring.append(samples)
@@ -139,23 +146,26 @@ final class MeetingAudioCapture: NSObject {
 
     private func startMixTimer() {
         let samplesPerTick = Int(outputFormat.sampleRate * mixIntervalSeconds)
-        mixTimer = Timer.scheduledTimer(withTimeInterval: mixIntervalSeconds, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                self.mixAndEmit(sampleCount: samplesPerTick)
-            }
+        let source = DispatchSource.makeTimerSource(queue: .main)
+        source.schedule(deadline: .now() + mixIntervalSeconds, repeating: mixIntervalSeconds)
+        source.setEventHandler { [weak self] in
+            self?.mixAndEmit(sampleCount: samplesPerTick)
         }
+        source.resume()
+        mixSource = source
     }
 
     private func mixAndEmit(sampleCount: Int) {
         let mic = micRing.drain(count: sampleCount)
         let system = systemRing.drain(count: sampleCount)
-        var mixed = [Int16](repeating: 0, count: sampleCount)
+        if mixBuffer.count != sampleCount {
+            mixBuffer = [Int16](repeating: 0, count: sampleCount)
+        }
         for i in 0..<sampleCount {
             let sum = Int32(mic[i]) + Int32(system[i])
-            mixed[i] = Int16(clamping: sum)
+            mixBuffer[i] = Int16(clamping: sum)
         }
-        let data = mixed.withUnsafeBufferPointer { Data(buffer: $0) }
+        let data = mixBuffer.withUnsafeBufferPointer { Data(buffer: $0) }
         onPCMChunk?(data)
     }
 
@@ -197,6 +207,28 @@ extension MeetingAudioCapture: SCStreamDelegate {
             self.stream = nil
             self.onStreamStopped?(error)
         }
+    }
+}
+
+/// Thread-safe cache for a single AVAudioConverter, rebuilt only when the
+/// incoming format changes. The system-audio callback fires on ScreenCaptureKit's
+/// sample-handler queue rather than the main actor, so this can't just be a
+/// plain `@MainActor`-isolated property like `micConverter`.
+private final class AudioConverterCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cachedFormat: AVAudioFormat?
+    private var cachedConverter: AVAudioConverter?
+
+    func converter(for inputFormat: AVAudioFormat, to targetFormat: AVAudioFormat) -> AVAudioConverter? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cachedFormat, let cachedConverter, cachedFormat == inputFormat {
+            return cachedConverter
+        }
+        guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else { return nil }
+        cachedFormat = inputFormat
+        cachedConverter = converter
+        return converter
     }
 }
 

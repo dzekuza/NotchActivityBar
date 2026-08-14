@@ -123,6 +123,11 @@ cp "$ROOT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 
 echo "Embedding Sparkle.framework..."
+if [ ! -d "$BUILD_DIR/Sparkle.framework" ]; then
+  echo "Sparkle.framework not found at $BUILD_DIR/Sparkle.framework" >&2
+  echo "Resolve SPM dependencies and build (swift build -c release) before packaging." >&2
+  exit 1
+fi
 ditto "$BUILD_DIR/Sparkle.framework" "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 

@@ -2,6 +2,9 @@
 import Darwin
 import Observation
 @preconcurrency import QuickLookThumbnailing
+import os
+
+private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "NotchActivityBar", category: "Screenshots")
 
 @MainActor
 @Observable
@@ -84,15 +87,20 @@ final class ScreenshotMonitor: NSObject {
         ) else { return }
 
         let known = Set(items.map(\.url)).union(manuallyDeletedURLs)
-        for url in entries where !known.contains(url) {
-            guard Self.isScreenCaptureFile(url) else { continue }
+        let candidates: [(url: URL, date: Date)] = entries.compactMap { url in
+            guard !known.contains(url), Self.isScreenCaptureFile(url) else { return nil }
             let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
+            return (url, date)
+        }.sorted { $0.date > $1.date }
+
+        for (url, date) in candidates {
             let item = ScreenshotItem(id: url, url: url, appName: appName(for: url), capturedAt: date, thumbnail: nil)
 
             items.insert(item, at: 0)
             items = Array(items.prefix(historyLimit))
             loadThumbnails(for: [item])
             if hasFinishedInitialGather {
+                log.notice("New screenshot detected: \(url.lastPathComponent, privacy: .public)")
                 onNewItem?(item)
             }
         }
@@ -182,7 +190,7 @@ final class ScreenshotMonitor: NSObject {
         }
     }
 
-    private static func detectLinks(in text: String) -> [URL] {
+    static func detectLinks(in text: String) -> [URL] {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return [] }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         return detector.matches(in: text, range: range).compactMap(\.url)
@@ -230,15 +238,24 @@ final class ScreenshotMonitor: NSObject {
 
     private func loadThumbnails(for screenshots: [ScreenshotItem]) {
         let generator = QLThumbnailGenerator.shared
-        for screenshot in screenshots {
+        // Callers like `handleQueryUpdate` re-pass the entire `items` array on
+        // every update; skip items that already have a thumbnail to avoid
+        // re-requesting (and re-decoding) the same image repeatedly.
+        for screenshot in screenshots where screenshot.thumbnail == nil {
             let request = QLThumbnailGenerator.Request(
                 fileAt: screenshot.url,
                 size: CGSize(width: 240, height: 152),
                 scale: 2,
                 representationTypes: .thumbnail
             )
-            generator.generateBestRepresentation(for: request) { [weak self] representation, _ in
-                guard let self, let representation else { return }
+            generator.generateBestRepresentation(for: request) { [weak self] representation, error in
+                guard let self else { return }
+                guard let representation else {
+                    if let error {
+                        log.error("Thumbnail generation failed for \(screenshot.url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    }
+                    return
+                }
                 Task { @MainActor in
                     guard let index = self.items.firstIndex(where: { $0.id == screenshot.id }) else { return }
                     self.items[index].thumbnail = representation.nsImage

@@ -64,6 +64,7 @@ struct NoteDetailOverlay: View {
                                 .background(Circle().fill(Theme.overlayButtonBackground))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Edit note")
                         Button(action: copyToClipboard) {
                             Image(systemName: "doc.on.doc")
                                 .font(.system(size: 11, weight: .semibold))
@@ -72,6 +73,7 @@ struct NoteDetailOverlay: View {
                                 .background(Circle().fill(Theme.overlayButtonBackground))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Copy note")
                         Button(action: onDelete) {
                             Image(systemName: "trash")
                                 .font(.system(size: 11, weight: .semibold))
@@ -80,6 +82,7 @@ struct NoteDetailOverlay: View {
                                 .background(Circle().fill(Theme.overlayButtonBackground))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Delete note")
                         Button(action: onClose) {
                             Image(systemName: "xmark")
                                 .font(.system(size: 11, weight: .semibold))
@@ -88,6 +91,7 @@ struct NoteDetailOverlay: View {
                                 .background(Circle().fill(Theme.overlayButtonBackground))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Close")
                     }
                 }
                 .padding(.horizontal, 16)

@@ -44,6 +44,7 @@ struct SettingsTabView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Refresh connected audio input devices")
+                    .accessibilityLabel("Refresh connected audio input devices")
                 }
             }
 
