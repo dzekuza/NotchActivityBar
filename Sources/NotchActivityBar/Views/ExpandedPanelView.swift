@@ -145,6 +145,7 @@ struct ExpandedPanelView: View {
             SettingsTabView(
                 aiSettings: meetingRecorderController.aiSettings,
                 apiKeyStore: meetingRecorderController.apiKeyStore,
+                permissions: meetingRecorderController.permissions,
                 onCheckForUpdates: onCheckForUpdates
             )
                 .transition(.opacity)

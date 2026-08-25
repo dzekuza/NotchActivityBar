@@ -8,6 +8,12 @@ final class MeetingRecorderController {
     private(set) var isRecording = false
     private(set) var isAutoDetectEnabled = true
     private(set) var lastError: String?
+
+    /// Non-fatal problems with an otherwise-running recording — chiefly "we got
+    /// your mic but not the other participants because Screen Recording isn't
+    /// granted". Kept separate from `lastError` so the UI can show it without
+    /// implying the recording failed.
+    private(set) var lastWarning: String?
     private(set) var pastSessions: [MeetingSession] = []
 
     /// While recording, observe `activeTranscriber?.transcript` for the live text.
@@ -15,6 +21,7 @@ final class MeetingRecorderController {
 
     let aiSettings = MeetingAISettings()
     let apiKeyStore = GeminiAPIKeyStore()
+    let permissions = PermissionsController()
 
     /// Fired whenever `isRecording` flips, for non-SwiftUI observers (the notch banner).
     var onRecordingStateChange: ((Bool) -> Void)?
@@ -73,15 +80,19 @@ final class MeetingRecorderController {
         Task { await MeetingSessionStore.delete(session) }
     }
 
-    private static func ensureMicrophoneAuthorization() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized:
+    /// Always re-reads the live TCC status rather than trusting anything cached
+    /// from an earlier recording: the user can revoke (or grant) microphone
+    /// access in System Settings at any point between two recordings.
+    private func ensureMicrophoneAuthorization() async -> Bool {
+        permissions.refresh()
+        switch permissions.microphone {
+        case .granted:
             return true
         case .notDetermined:
-            return await PermissionPrompt.around { await AVCaptureDevice.requestAccess(for: .audio) }
-        case .denied, .restricted:
-            return false
-        @unknown default:
+            let granted = await PermissionPrompt.around { await AVCaptureDevice.requestAccess(for: .audio) }
+            permissions.refresh()
+            return granted
+        case .denied:
             return false
         }
     }
@@ -111,11 +122,12 @@ final class MeetingRecorderController {
         audioCapture = capture
         currentSession = MeetingSession(id: UUID(), startedAt: Date(), endedAt: nil, transcript: "")
         lastError = nil
+        lastWarning = nil
 
         Task { @MainActor in
-            let micAuthorized = await Self.ensureMicrophoneAuthorization()
+            let micAuthorized = await self.ensureMicrophoneAuthorization()
             guard micAuthorized else {
-                self.lastError = "Microphone access denied — enable it in System Settings > Privacy & Security > Microphone."
+                self.lastError = "Microphone access is turned off — turn it on in System Settings > Privacy & Security > Microphone, then try again."
                 self.stopRecording()
                 return
             }
@@ -127,6 +139,7 @@ final class MeetingRecorderController {
                     capture.stop()
                     return
                 }
+                self.lastWarning = capture.systemAudioFailure
                 self.isRecording = true
                 self.onRecordingStateChange?(true)
             } catch {
@@ -170,6 +183,7 @@ final class MeetingRecorderController {
         }
         currentSession = nil
         carriedOverTranscript = ""
+        lastWarning = nil
 
         activeTranscriber?.disconnect()
         activeTranscriber = nil

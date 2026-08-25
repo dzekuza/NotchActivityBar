@@ -22,11 +22,14 @@ struct MeetingsTabView: View {
             }
 
             if let error = controller.lastError {
-                Text(error)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.danger)
-                    .padding(.horizontal, 20)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                banner(error, tint: Theme.danger, icon: "exclamationmark.octagon.fill", fix: missingPermission)
+            }
+
+            // A recording that started but can only hear our own side is still a
+            // half-lost meeting, so it gets said out loud here rather than only
+            // in the log.
+            if let warning = controller.lastWarning {
+                banner(warning, tint: Theme.amber, icon: "exclamationmark.triangle.fill", fix: missingPermission)
             }
 
             MeetingCardScrollView(sessions: filteredSessions, isSearching: !searchText.isEmpty, onDelete: { session in
@@ -35,7 +38,50 @@ struct MeetingsTabView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: controller.isRecording)
         .animation(.easeInOut(duration: 0.2), value: controller.lastError)
+        .animation(.easeInOut(duration: 0.2), value: controller.lastWarning)
         .padding(.bottom, 16)
+    }
+
+    /// The first permission standing between the user and a complete recording,
+    /// so a failure banner can offer the fix instead of just naming the pane.
+    private var missingPermission: PermissionsController.Kind? {
+        controller.permissions.blockingIssues.first
+    }
+
+    private func banner(
+        _ message: String,
+        tint: Color,
+        icon: String,
+        fix: PermissionsController.Kind?
+    ) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(tint)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(tint)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 8)
+
+            if let fix {
+                Button {
+                    controller.permissions.request(fix)
+                } label: {
+                    Text(controller.permissions.status(for: fix) == .notDetermined ? "Allow…" : "Open Settings…")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Theme.inactiveTabBackground))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Grant \(fix.title) access")
+            }
+        }
+        .padding(.horizontal, 20)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     private var header: some View {

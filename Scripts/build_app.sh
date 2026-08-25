@@ -144,13 +144,38 @@ codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" \
 codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$SPARKLE_FRAMEWORK"
 
 echo "Code signing $APP_NAME.app with $SIGN_IDENTITY..."
+# Both build flavours MUST be signed with entitlements. Under the hardened
+# runtime (--options runtime), com.apple.security.device.audio-input and
+# com.apple.security.device.camera are what actually permit the process to open
+# the mic and the camera — TCC approval alone is not enough. Signing a release
+# build with no entitlements at all produced an app that showed up as "allowed"
+# under System Settings > Privacy & Security > Microphone yet was refused the
+# hardware every time, which reads exactly like a stale/cached permission.
+#
+# Release builds still must NOT carry the get-task-allow debug entitlement —
+# Apple's notary service rejects it outright — so derive the release
+# entitlements from the same file rather than maintaining a second copy that
+# can silently drift out of sync with it.
+ENTITLEMENTS="$ROOT_DIR/Resources/NotchActivityBar.entitlements"
 if [ "$RELEASE" = "1" ]; then
-    # Release builds must NOT carry the get-task-allow debug entitlement from
-    # NotchActivityBar.entitlements — Apple's notary service rejects it outright.
-    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
-else
-    codesign --force --options runtime --timestamp --entitlements "$ROOT_DIR/Resources/NotchActivityBar.entitlements" --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+    RELEASE_ENTITLEMENTS="$DIST_DIR/$APP_NAME-release.entitlements"
+    cp "$ENTITLEMENTS" "$RELEASE_ENTITLEMENTS"
+    /usr/libexec/PlistBuddy -c "Delete :com.apple.security.get-task-allow" "$RELEASE_ENTITLEMENTS" >/dev/null 2>&1 || true
+    if /usr/libexec/PlistBuddy -c "Print :com.apple.security.get-task-allow" "$RELEASE_ENTITLEMENTS" >/dev/null 2>&1; then
+        echo "Failed to strip get-task-allow from release entitlements — notarization would reject this build." >&2
+        exit 1
+    fi
+    ENTITLEMENTS="$RELEASE_ENTITLEMENTS"
 fi
+codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+
+echo "Verifying entitlements survived signing..."
+for required in com.apple.security.device.audio-input com.apple.security.device.camera; do
+    if ! codesign -d --entitlements - "$APP_BUNDLE" 2>/dev/null | grep -qa "$required"; then
+        echo "Signed bundle is missing the $required entitlement — recording would be blocked by the hardened runtime." >&2
+        exit 1
+    fi
+done
 
 echo "Verifying signature..."
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
