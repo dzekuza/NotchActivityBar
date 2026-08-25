@@ -35,6 +35,27 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     func connect() {
         guard recognitionRequest == nil else { return }
 
+        // Check the recorded decision before asking. `requestAuthorization` was
+        // previously called unconditionally on every recording start, and each
+        // call ran `PermissionPrompt.activate()` — which promotes this
+        // menu-bar-only app to `.regular` and forcibly activates it. On an
+        // already-authorized Mac that meant every auto-started meeting stole
+        // focus from whatever the user was doing (typically the call itself)
+        // for no reason, since macOS was never going to show a prompt.
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .authorized:
+            startRecognition()
+            return
+        case .denied, .restricted:
+            NSLog("AppleSpeechTranscriber: speech recognition not authorized")
+            lastError = "Speech recognition is turned off — turn it on in System Settings > Privacy & Security > Speech Recognition."
+            return
+        case .notDetermined:
+            break
+        @unknown default:
+            break
+        }
+
         // `@Sendable` is required here: Speech's completion handler isn't
         // annotated Sendable in its imported interface, so Swift otherwise
         // infers this closure as MainActor-isolated (since it's written inside

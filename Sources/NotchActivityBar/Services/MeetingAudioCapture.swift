@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import AudioToolbox
 import CoreAudio
+import CoreGraphics
 import CoreMedia
 import Foundation
 import ScreenCaptureKit
@@ -28,6 +29,12 @@ final class MeetingAudioCapture: NSObject {
 
     var onPCMChunk: ((Data) -> Void)?
 
+    /// Set when the system-audio half of the capture couldn't start. Recording
+    /// still proceeds mic-only, but only *our* side of the call gets recorded —
+    /// which previously was logged and nowhere else, so a meeting silently came
+    /// back with half the conversation missing and no explanation.
+    private(set) var systemAudioFailure: String?
+
     /// Invoked when the system ends the capture externally (e.g. the user
     /// clicks "Stop Sharing" in the menu bar screen-capture indicator, Screen
     /// Recording permission is revoked, or the captured display disconnects),
@@ -50,14 +57,26 @@ final class MeetingAudioCapture: NSObject {
     private var mixBuffer: [Int16] = []
 
     func start(inputDeviceID: AudioDeviceID? = nil) async throws {
+        systemAudioFailure = nil
         try startMicCapture(inputDeviceID: inputDeviceID)
         do {
             try await startSystemAudioCapture()
             log.info("System audio capture started.")
         } catch {
+            systemAudioFailure = Self.describeSystemAudioFailure(error)
             log.error("System audio capture failed: \(error.localizedDescription, privacy: .public) — proceeding with mic capture only.")
         }
         startMixTimer()
+    }
+
+    /// ScreenCaptureKit reports a missing Screen Recording grant as a generic
+    /// `SCStreamError`, so ask CoreGraphics directly rather than parsing it —
+    /// the difference matters because it's the one failure the user can fix.
+    private static func describeSystemAudioFailure(_ error: Error) -> String {
+        guard CGPreflightScreenCaptureAccess() else {
+            return "Screen Recording permission isn't granted — only your microphone is being recorded, not the other participants."
+        }
+        return "System audio couldn't be captured (\(error.localizedDescription)) — only your microphone is being recorded."
     }
 
     func stop() {

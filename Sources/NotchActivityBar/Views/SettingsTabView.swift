@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsTabView: View {
     let aiSettings: MeetingAISettings
     let apiKeyStore: GeminiAPIKeyStore
+    let permissions: PermissionsController
     let onCheckForUpdates: () -> Void
 
     @State private var deviceManager = AudioDeviceManager.shared
@@ -13,6 +14,14 @@ struct SettingsTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Grouped, not loose: this VStack is already at `ViewBuilder`'s
+            // ten-child ceiling, so the permissions section and its divider have
+            // to count as one. Unwrapping them breaks the build.
+            Group {
+                permissionsSection
+                Divider()
+            }
+
             VStack(alignment: .leading, spacing: 5) {
                 Text("Microphone Input Device")
                     .font(.system(size: 13, weight: .semibold))
@@ -207,6 +216,127 @@ struct SettingsTabView: View {
         .padding(.top, 4)
         .padding(.bottom, 16)
         .frame(width: Theme.expandedWidth, alignment: .leading)
+        // macOS has no notification for a TCC change, so the app would otherwise
+        // keep displaying whatever it happened to read at launch. Re-reading
+        // every time this tab appears (on top of `PermissionsController`'s
+        // app-activation hook) makes "I just changed it in System Settings"
+        // show up here instead of looking cached.
+        .onAppear { permissions.refresh() }
+    }
+
+    // MARK: - Permissions
+
+    private var permissionsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Recording Permissions")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+
+                Spacer()
+
+                Button {
+                    permissions.refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .help("Re-check permissions")
+                .accessibilityLabel("Re-check recording permissions")
+            }
+
+            Text("Recording a meeting needs all three. macOS doesn't notify apps when you change these, so re-check after editing them in System Settings.")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.secondaryText)
+
+            ForEach(PermissionsController.Kind.allCases) { kind in
+                permissionRow(kind)
+            }
+
+            if permissions.screenRecordingNeedsRelaunch {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.amber)
+                    Text("Screen Recording was granted after launch — macOS only applies it to a freshly started app.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.amber)
+
+                    Spacer(minLength: 8)
+
+                    Button(action: relaunch) {
+                        Text("Relaunch")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.activeTabText)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Theme.activeTabBackground))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func permissionRow(_ kind: PermissionsController.Kind) -> some View {
+        let status = permissions.status(for: kind)
+        return HStack(spacing: 8) {
+            Image(systemName: status.isGranted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(status.isGranted ? Color.green : Theme.amber)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(kind.title)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.primaryText)
+                Text(kind.detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.secondaryText)
+            }
+
+            Spacer(minLength: 12)
+
+            if status.isGranted {
+                Text("Allowed")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.secondaryText)
+            } else {
+                Button {
+                    permissions.request(kind)
+                } label: {
+                    Text(status == .notDetermined ? "Allow…" : "Open Settings…")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Theme.inactiveTabBackground))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Grant \(kind.title) access")
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    /// Screen Recording grants only reach a process that was launched after the
+    /// switch was flipped, so offer the same escape hatch macOS's own alert does.
+    private func relaunch() {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
+            // `any Error` isn't Sendable, so pull the message out here rather
+            // than carrying the error itself across to the main actor.
+            let failure = error?.localizedDescription
+            Task { @MainActor in
+                if let failure {
+                    NSLog("SettingsTabView: relaunch failed — \(failure)")
+                    return
+                }
+                NSApp.terminate(nil)
+            }
+        }
     }
 
     private var statusIcon: String {
