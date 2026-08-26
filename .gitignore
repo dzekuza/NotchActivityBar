@@ -4,3 +4,8 @@ dist/
 *.xcodeproj
 .swiftpm/
 Scripts/sparkle-tools/
+
+# Syncthing conflict copies. These are duplicates it drops next to a file
+# edited on two machines at once — never real work, but they show up as
+# untracked files and make `build_app.sh --bump` refuse to cut a release.
+*.sync-conflict-*
