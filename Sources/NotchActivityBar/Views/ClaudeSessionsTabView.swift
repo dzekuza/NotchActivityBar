@@ -51,7 +51,11 @@ struct ClaudeSessionsTabView: View {
             }
             .padding(.bottom, 16)
         }
-        .frame(maxHeight: 360)
+        // Shares the one content budget rather than its own magic number: at
+        // the previous 360 this tab plus the panel chrome and the live
+        // recording banner came to more than `Theme.expandedMaxHeight`, so the
+        // panel clamped and clipped the bottom of the list.
+        .frame(maxHeight: Theme.expandedContentMaxHeight)
     }
 
     private var filteredGroups: [(cwd: String, agents: [ClaudeAgentSummary])] {

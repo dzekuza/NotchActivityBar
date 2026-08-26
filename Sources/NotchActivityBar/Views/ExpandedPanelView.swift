@@ -40,13 +40,9 @@ struct ExpandedPanelView: View {
                 .frame(width: Theme.expandedWidth)
         }
         .frame(width: Theme.expandedWidth)
-        .background(
-            Theme.panelBackground,
-            in: NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: Theme.panelCornerRadius)
-        )
-        .clipShape(
-            NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: Theme.panelCornerRadius)
-        )
+        // Measure the stack's *natural* height here, before it is stretched to
+        // fill the window below — that ideal height is what the panel frame is
+        // sized from.
         .background {
             GeometryReader { proxy in
                 Color.clear
@@ -55,14 +51,24 @@ struct ExpandedPanelView: View {
                     }
             }
         }
-        // The window's content view is always exactly as tall as the AppKit
-        // frame (animated separately in NotchPanelController), while this
-        // SwiftUI content's own ideal height animates on its own clock when
-        // switching tabs. Without pinning to the top, NSHostingView centers
-        // undersized/oversized content within that frame, so any momentary
-        // mismatch between the two animations reads as growth on both the
-        // top and bottom edges instead of just the bottom.
+        // Pin the content to the top and let it fill the window, then paint the
+        // panel shape on *that* frame rather than on the content's own height.
+        //
+        // Painting the background on the content instead (the previous order)
+        // made the visible panel exactly as tall as the SwiftUI content while
+        // the window animated to the new height on AppKit's separate clock. For
+        // the ~0.18s the two disagreed, the rounded shape was a different size
+        // than the window it sat in, which is what read as the panel jumping at
+        // its top and bottom edges on every tab switch. Anchored to the window
+        // frame, the shape now animates as one with it.
         .frame(maxHeight: .infinity, alignment: .top)
+        .background(
+            Theme.panelBackground,
+            in: NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: Theme.panelCornerRadius)
+        )
+        .clipShape(
+            NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: Theme.panelCornerRadius)
+        )
         .overlay {
             if let item = expandedScreenshotExtraction {
                 ScreenshotExtractionOverlay(

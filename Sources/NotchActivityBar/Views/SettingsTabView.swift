@@ -13,6 +13,28 @@ struct SettingsTabView: View {
     @State private var showSavedConfirmation = false
 
     var body: some View {
+        // Settings is the one tab whose content has no natural ceiling — every
+        // other tab is a fixed-height card row. Left unbounded it measured well
+        // past `Theme.expandedMaxHeight`, so the panel clamped at that height
+        // and silently cut off everything below (Software Update, and most of
+        // the API key section). Scrolling inside a fixed-height viewport keeps
+        // all of it reachable, and pins the tab to one height so toggling a
+        // control that shows or hides a row — picking Gemini Live, which adds
+        // the language field — no longer resizes the whole panel underneath the
+        // user's cursor.
+        ScrollView {
+            settingsContent
+        }
+        .frame(width: Theme.expandedWidth, height: Theme.expandedContentMaxHeight)
+        // macOS has no notification for a TCC change, so the app would otherwise
+        // keep displaying whatever it happened to read at launch. Re-reading
+        // every time this tab appears (on top of `PermissionsController`'s
+        // app-activation hook) makes "I just changed it in System Settings"
+        // show up here instead of looking cached.
+        .onAppear { permissions.refresh() }
+    }
+
+    private var settingsContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             // Grouped, not loose: this VStack is already at `ViewBuilder`'s
             // ten-child ceiling, so the permissions section and its divider have
@@ -216,12 +238,6 @@ struct SettingsTabView: View {
         .padding(.top, 4)
         .padding(.bottom, 16)
         .frame(width: Theme.expandedWidth, alignment: .leading)
-        // macOS has no notification for a TCC change, so the app would otherwise
-        // keep displaying whatever it happened to read at launch. Re-reading
-        // every time this tab appears (on top of `PermissionsController`'s
-        // app-activation hook) makes "I just changed it in System Settings"
-        // show up here instead of looking cached.
-        .onAppear { permissions.refresh() }
     }
 
     // MARK: - Permissions
@@ -247,12 +263,24 @@ struct SettingsTabView: View {
                 .accessibilityLabel("Re-check recording permissions")
             }
 
-            Text("Recording a meeting needs all three. macOS doesn't notify apps when you change these, so re-check after editing them in System Settings.")
+            Text("Recording a meeting needs the first three. macOS doesn't notify apps when you change these, so re-check after editing them in System Settings.")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.secondaryText)
 
             ForEach(PermissionsController.Kind.allCases) { kind in
                 permissionRow(kind)
+            }
+
+            Text("macOS asks only once per permission and remembers the answer forever after — if no prompt appears when you record, a decision is already stored. Reset clears it so the system asks again; the app may need a relaunch afterwards.")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.tertiaryText)
+
+            if let resetFailure = permissions.resetFailure {
+                Text(resetFailure)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.danger)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if permissions.screenRecordingNeedsRelaunch {
@@ -316,6 +344,20 @@ struct SettingsTabView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Grant \(kind.title) access")
             }
+
+            Button {
+                permissions.reset(kind)
+            } label: {
+                Text("Reset")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.secondaryText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Theme.inactiveTabBackground.opacity(0.6)))
+            }
+            .buttonStyle(.plain)
+            .help("Clear the stored decision so macOS asks again")
+            .accessibilityLabel("Reset \(kind.title) permission")
         }
         .padding(.vertical, 2)
     }

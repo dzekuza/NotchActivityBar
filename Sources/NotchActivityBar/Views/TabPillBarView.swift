@@ -8,7 +8,17 @@ struct TabPillBarView: View {
         HStack(spacing: 8) {
             ForEach(AppTab.allCases) { tab in
                 Button {
-                    withAnimation(.easeOut(duration: 0.15)) { selection = tab }
+                    // Deliberately *not* wrapped in `withAnimation`. Doing so
+                    // put the tab content swap inside an animation transaction,
+                    // so SwiftUI cross-faded the outgoing and incoming tabs —
+                    // and while both were in the hierarchy the enclosing stack
+                    // measured the union of their heights. Every intermediate
+                    // value was reported up as a new panel height, restarting
+                    // the window's resize animation frame after frame, which
+                    // is what made the panel stutter on a tab switch. The pill
+                    // styling below still animates via `.animation(value:)`;
+                    // only the height-bearing content now swaps atomically.
+                    selection = tab
                 } label: {
                     HStack(spacing: 6) {
                         Text(tab.rawValue)
@@ -34,5 +44,6 @@ struct TabPillBarView: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 16)
+        .animation(.easeOut(duration: 0.15), value: selection)
     }
 }

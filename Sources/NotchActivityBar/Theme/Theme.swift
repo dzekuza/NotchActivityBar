@@ -106,6 +106,13 @@ enum Theme {
     static let fallbackMenuBarHeight: CGFloat = 24
     static let expandedWidth: CGFloat = 680
     static let expandedMaxHeight: CGFloat = 480
+    /// Height budget for a tab's own content: `expandedMaxHeight` minus the
+    /// search bar (60), the tab pill bar (~48), and enough room for the live
+    /// recording banner (~46) that appears above the content on every tab but
+    /// Meetings. A tab whose content can grow without bound must scroll within
+    /// this — otherwise the panel clamps at `expandedMaxHeight` and silently
+    /// clips whatever didn't fit, with no scrollbar to reveal it.
+    static let expandedContentMaxHeight: CGFloat = 320
     static let cardWidth: CGFloat = 150
     static let cardImageHeight: CGFloat = 130
 }
