@@ -54,6 +54,11 @@ Both panels default to `ignoresMouseEvents = true` so they never swallow clicks 
 
 Panel resize/reposition is frame-based (`NSAnimationContext` + `.animator()`), not SwiftUI-driven — `ExpandedPanelView` reports its content height up through an `onHeightChange` closure, and the controller clamps/animates the panel frame itself. The first resize after opening is snapped (not animated) to avoid a visible "closes then reopens" artifact, since the true content height only arrives a beat after the panel is shown at a guessed size.
 
+Two invariants keep that split from tearing, both learned from bugs:
+- **The panel background must be painted on the window-filling frame, not on the content.** `ExpandedPanelView` measures its natural height with a `GeometryReader`, *then* applies `.frame(maxHeight: .infinity, alignment: .top)`, and only then draws `NotchShape`. Painting the shape on the content's own height instead makes the visible panel a different size than the window whenever the two animations disagree, which reads as the panel jumping at its top and bottom edges.
+- **Nothing may animate a change that feeds `onHeightChange`.** A tab swap inside `withAnimation` cross-fades the outgoing and incoming tabs; while both are in the hierarchy the stack measures the union of their heights and reports every intermediate value, restarting the window animation each frame. `TabPillBarView` therefore sets `selection` bare and animates only the pill styling via `.animation(value:)`.
+- **A tab whose content can grow without bound must scroll within `Theme.expandedContentMaxHeight`.** The controller clamps the panel at `Theme.expandedMaxHeight` and there is no scrollbar at the panel level, so overflow is silently clipped and unreachable. Settings is the tab this bites; the card-row tabs are naturally fixed-height.
+
 ### Feature domains
 
 Each tab in `AppTab` (Clipboard, Meetings, Notes, Screenshots, Settings) is backed by an `@Observable @MainActor` controller/monitor in `Services/`, constructed once in `NotchPanelController.init()` and threaded down through `ExpandedPanelHost` → `ExpandedPanelView` → the tab-specific view:
