@@ -30,6 +30,11 @@ final class MeetingRecorderController {
     private var audioCapture: MeetingAudioCapture?
     private var currentSession: MeetingSession?
 
+    /// Whether the in-flight recording was started by the call detector rather
+    /// than by the user. Only auto-started recordings are auto-stopped when the
+    /// mic goes quiet — a deliberate "Record Now" runs until Stop is pressed.
+    private var isAutoStartedSession = false
+
     /// Text already accumulated from a transcriber we fell back away from
     /// mid-recording (e.g. Gemini Live failing over to Apple Speech), so the
     /// final transcript doesn't lose what was captured before the switch.
@@ -46,8 +51,9 @@ final class MeetingRecorderController {
         callActivityDetector.onChange = { [weak self] active in
             guard let self, self.isAutoDetectEnabled else { return }
             if active {
-                self.startRecording()
+                self.startRecording(auto: true)
             } else {
+                guard self.isAutoStartedSession else { return }
                 self.stopRecording()
             }
         }
@@ -61,7 +67,9 @@ final class MeetingRecorderController {
 
     func setAutoDetectEnabled(_ enabled: Bool) {
         isAutoDetectEnabled = enabled
-        if !enabled {
+        // Only tears down a recording auto-detect itself started; a manual one
+        // is the user's, and switching the feature off shouldn't end it.
+        if !enabled, isAutoStartedSession {
             stopRecording()
         }
     }
@@ -71,7 +79,7 @@ final class MeetingRecorderController {
         if isRecording {
             stopRecording()
         } else {
-            startRecording()
+            startRecording(auto: false)
         }
     }
 
@@ -97,7 +105,7 @@ final class MeetingRecorderController {
         }
     }
 
-    private func startRecording() {
+    private func startRecording(auto: Bool) {
         guard !isRecording, audioCapture == nil else { return }
 
         carriedOverTranscript = ""
@@ -121,6 +129,7 @@ final class MeetingRecorderController {
 
         audioCapture = capture
         currentSession = MeetingSession(id: UUID(), startedAt: Date(), endedAt: nil, transcript: "")
+        isAutoStartedSession = auto
         lastError = nil
         lastWarning = nil
 
@@ -182,6 +191,7 @@ final class MeetingRecorderController {
             persistedSession = session
         }
         currentSession = nil
+        isAutoStartedSession = false
         carriedOverTranscript = ""
         lastWarning = nil
 

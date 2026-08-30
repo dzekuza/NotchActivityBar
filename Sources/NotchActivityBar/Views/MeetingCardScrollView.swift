@@ -4,6 +4,7 @@ struct MeetingCardScrollView: View {
     let sessions: [MeetingSession]
     var isSearching: Bool = false
     let onDelete: (MeetingSession) -> Void
+    let onExpand: (MeetingSession) -> Void
 
     var body: some View {
         Group {
@@ -19,9 +20,11 @@ struct MeetingCardScrollView: View {
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 12) {
                         ForEach(sessions) { session in
-                            MeetingCardView(session: session) {
-                                onDelete(session)
-                            }
+                            MeetingCardView(
+                                session: session,
+                                onDelete: { onDelete(session) },
+                                onExpand: { onExpand(session) }
+                            )
                             .transition(.scale(scale: 0.85).combined(with: .opacity))
                         }
                     }

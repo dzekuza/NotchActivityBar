@@ -4,6 +4,16 @@ struct MeetingsTabView: View {
     let controller: MeetingRecorderController
     var searchText: String = ""
 
+    @State private var expandedSessionID: UUID?
+
+    /// Looked up by id rather than held by value: `requestSummary` patches
+    /// `pastSessions` asynchronously, so an AI summary that lands while the
+    /// overlay is open still shows up in it.
+    private var expandedSession: MeetingSession? {
+        guard let expandedSessionID else { return nil }
+        return controller.pastSessions.first { $0.id == expandedSessionID }
+    }
+
     private var filteredSessions: [MeetingSession] {
         guard !searchText.isEmpty else { return controller.pastSessions }
         return controller.pastSessions.filter {
@@ -34,12 +44,29 @@ struct MeetingsTabView: View {
 
             MeetingCardScrollView(sessions: filteredSessions, isSearching: !searchText.isEmpty, onDelete: { session in
                 controller.deleteSession(session)
+                if expandedSessionID == session.id { expandedSessionID = nil }
+            }, onExpand: { session in
+                expandedSessionID = session.id
             })
         }
         .animation(.easeInOut(duration: 0.2), value: controller.isRecording)
         .animation(.easeInOut(duration: 0.2), value: controller.lastError)
         .animation(.easeInOut(duration: 0.2), value: controller.lastWarning)
         .padding(.bottom, 16)
+        .overlay {
+            if let session = expandedSession {
+                MeetingDetailOverlay(
+                    session: session,
+                    onDelete: {
+                        controller.deleteSession(session)
+                        expandedSessionID = nil
+                    },
+                    onClose: { expandedSessionID = nil }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+        .animation(.snappy(duration: 0.2), value: expandedSessionID)
     }
 
     /// The first permission standing between the user and a complete recording,

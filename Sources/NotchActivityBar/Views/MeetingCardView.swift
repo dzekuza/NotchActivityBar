@@ -3,6 +3,7 @@ import SwiftUI
 struct MeetingCardView: View {
     let session: MeetingSession
     let onDelete: () -> Void
+    let onExpand: () -> Void
 
     @State private var isHovering = false
 
@@ -74,5 +75,11 @@ struct MeetingCardView: View {
         .scaleEffect(isHovering ? 1.02 : 1.0)
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .onHover { isHovering = $0 }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onExpand)
+        .contextMenu {
+            Button("Open", action: onExpand)
+            Button("Delete", role: .destructive, action: onDelete)
+        }
     }
 }
