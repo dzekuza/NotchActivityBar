@@ -149,7 +149,25 @@ final class NotchPanelController {
     // expand/collapse/expand on the first hover of a session. Instead this
     // single poll loop is the only place that decides both click-through and
     // expand/collapse, so there's exactly one source of truth per mouse move.
+    /// The mouse monitor is deliberately not allowed to collapse the panel
+    /// while a modal picker owns the cursor, so once the last hold drops the
+    /// panel would sit open forever with the cursor nowhere near it. Re-check
+    /// once here rather than waiting for a mouse-move that may never come.
+    private func handleHoldRelease() {
+        guard isEnabled else { return }
+        let location = NSEvent.mouseLocation
+        let overExpanded = expandedPanel.isVisible && expandedPanel.frame.contains(location)
+        let overIdlePill = idlePanel.isVisible && idlePillFrame.contains(location)
+        guard !(overExpanded || overIdlePill) else { return }
+        isHoveringExpandRegion = false
+        scheduleCollapse()
+    }
+
     private func startMouseMonitor() {
+        NotchPanelHold.onRelease = { [weak self] in
+            Task { @MainActor in self?.handleHoldRelease() }
+        }
+
         let handler: (NSEvent) -> Void = { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in self.updateHoverState() }
@@ -339,6 +357,9 @@ final class NotchPanelController {
     }
 
     private func scheduleCollapse() {
+        // A modal picker (folder chooser) has the cursor; folding up now would
+        // take the form that opened it down with the panel.
+        guard !NotchPanelHold.isHeld else { return }
         collapseTask?.cancel()
         collapseTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(220))

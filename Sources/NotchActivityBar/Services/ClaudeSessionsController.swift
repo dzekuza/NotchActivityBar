@@ -104,6 +104,15 @@ final class ClaudeSessionsController {
         cleanUp(agentID: agent.id)
     }
 
+    /// Drops a finished agent's card. Terminates first in case it's still
+    /// alive — `stopAgent` and this are the only ways a card leaves the list,
+    /// and a removed card must not leave an orphaned subprocess behind.
+    func removeAgent(_ agent: ClaudeOwnedAgent) {
+        processes[agent.id]?.terminate()
+        cleanUp(agentID: agent.id)
+        ownedAgents.removeAll { $0.id == agent.id }
+    }
+
     private func cleanUp(agentID: UUID) {
         processes[agentID] = nil
         bridges[agentID]?.cleanUp()

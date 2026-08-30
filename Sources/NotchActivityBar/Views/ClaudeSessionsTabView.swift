@@ -4,7 +4,7 @@ struct ClaudeSessionsTabView: View {
     let controller: ClaudeSessionsController
     var searchText: String = ""
 
-    @State private var newAgentProjectPath = ""
+    @State private var newAgentProjectPath: String?
     @State private var newAgentPrompt = ""
     @State private var showingNewAgentForm = false
 
@@ -91,34 +91,75 @@ struct ClaudeSessionsTabView: View {
             .padding(.horizontal, 20)
     }
 
+    private var canStart: Bool {
+        newAgentProjectPath != nil && !newAgentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var newAgentForm: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Project path (e.g. ~/code/my-project)", text: $newAgentProjectPath)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .padding(8)
-                .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous))
+            folderRow
             TextField("What should it do?", text: $newAgentPrompt)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .padding(8)
                 .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous))
-            Button("Start") {
-                let path = (newAgentProjectPath as NSString).expandingTildeInPath
-                guard !path.isEmpty, !newAgentPrompt.isEmpty else { return }
-                controller.startAgent(projectPath: path, firstMessage: newAgentPrompt)
-                newAgentProjectPath = ""
-                newAgentPrompt = ""
-                showingNewAgentForm = false
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(Theme.primaryText)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(Theme.inactiveTabBackground))
+            Button("Start", action: startAgent)
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(canStart ? Theme.primaryText : Theme.tertiaryText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Theme.inactiveTabBackground))
+                .disabled(!canStart)
         }
         .padding(.horizontal, 20)
+    }
+
+    private var folderRow: some View {
+        Button(action: chooseFolder) {
+            HStack(spacing: 8) {
+                Image(systemName: "folder")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(newAgentProjectPath == nil ? Theme.tertiaryText : Theme.amber)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(newAgentProjectPath.map { ($0 as NSString).lastPathComponent } ?? "Choose project folder…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(newAgentProjectPath == nil ? Theme.tertiaryText : Theme.primaryText)
+                        .lineLimit(1)
+                    if let path = newAgentProjectPath {
+                        Text((path as NSString).abbreviatingWithTildeInPath)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.tertiaryText)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                }
+                Spacer(minLength: 8)
+                Text(newAgentProjectPath == nil ? "Browse…" : "Change…")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.secondaryText)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Choose project folder")
+    }
+
+    private func chooseFolder() {
+        guard let path = FolderPicker.chooseDirectory(startingAt: newAgentProjectPath) else { return }
+        newAgentProjectPath = path
+    }
+
+    private func startAgent() {
+        guard let path = newAgentProjectPath else { return }
+        let prompt = newAgentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else { return }
+        controller.startAgent(projectPath: path, firstMessage: prompt)
+        newAgentProjectPath = nil
+        newAgentPrompt = ""
+        showingNewAgentForm = false
     }
 }
 
@@ -171,10 +212,21 @@ private struct ClaudeOwnedAgentCard: View {
                 Text(stateLabel)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Theme.secondaryText)
-                Button("Stop") { controller.stopAgent(agent) }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Theme.danger)
+                // A finished agent has nothing left to stop, so the same slot
+                // becomes the way to clear its card off the list.
+                if isLive {
+                    Button("Stop") { controller.stopAgent(agent) }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.danger)
+                        .accessibilityLabel("Stop session")
+                } else {
+                    Button("Remove") { controller.removeAgent(agent) }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Theme.secondaryText)
+                        .accessibilityLabel("Remove session")
+                }
             }
 
             ScrollView {
@@ -207,7 +259,7 @@ private struct ClaudeOwnedAgentCard: View {
                 }
                 .padding(8)
                 .background(Theme.rowHover, in: RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous))
-            } else {
+            } else if isLive {
                 HStack(spacing: 8) {
                     TextField("Message", text: $draft)
                         .textFieldStyle(.plain)
@@ -222,6 +274,13 @@ private struct ClaudeOwnedAgentCard: View {
         }
         .padding(12)
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
+    }
+
+    private var isLive: Bool {
+        switch agent.state {
+        case .starting, .running, .waitingForInput: true
+        case .exited, .failed: false
+        }
     }
 
     private var stateLabel: String {
