@@ -101,26 +101,33 @@ struct SettingsTabView: View {
                 .labelsHidden()
                 .controlSize(.small)
 
-                if aiSettings.engine == .geminiLive {
-                    HStack(spacing: 6) {
-                        Text("Language")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.secondaryText)
-                        TextField("Auto-detect (e.g. lt-LT for Lithuanian)", text: Binding(
-                            get: { aiSettings.languageCode },
-                            set: { aiSettings.languageCode = $0 }
-                        ))
-                        .textFieldStyle(.plain)
+                // Both engines honour a language now, so this is no longer
+                // Gemini-only — and it is a list rather than a text field
+                // because Apple Speech accepts a fixed set of locales and
+                // silently mis-transcribes anything outside it.
+                HStack(spacing: 6) {
+                    Text("Language")
                         .font(.system(size: 11))
-                        .foregroundStyle(Theme.primaryText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: Theme.rowCornerRadius, style: .continuous)
-                                .fill(Theme.cardBackground)
-                        )
-                        .frame(maxWidth: 240)
+                        .foregroundStyle(Theme.secondaryText)
+                    Picker("", selection: Binding(
+                        get: { aiSettings.languageCode },
+                        set: { aiSettings.languageCode = $0 }
+                    )) {
+                        ForEach(MeetingLanguageCatalog.available(for: aiSettings.engine)) { language in
+                            Text(language.displayName).tag(language.code)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(maxWidth: 240)
+                }
+
+                if !MeetingLanguageCatalog.isSupported(aiSettings.languageCode, by: aiSettings.engine) {
+                    Text("Apple Speech can't transcribe \(MeetingLanguageCatalog.displayName(for: aiSettings.languageCode)) — switch to Gemini Live for this language.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.amber)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 

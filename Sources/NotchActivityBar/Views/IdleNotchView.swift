@@ -1,13 +1,33 @@
 import SwiftUI
 
+/// The language chooser shown under the notch as a recording begins.
+struct LanguagePrompt: Equatable {
+    var languages: [MeetingLanguage]
+    var selectedCode: String
+    var engineSupportsSelection: Bool
+
+    static func == (lhs: LanguagePrompt, rhs: LanguagePrompt) -> Bool {
+        lhs.selectedCode == rhs.selectedCode
+            && lhs.engineSupportsSelection == rhs.engineSupportsSelection
+            && lhs.languages == rhs.languages
+    }
+}
+
 struct IdleNotchView: View {
     var size: CGSize = CGSize(width: Theme.idleWidth, height: Theme.idleHeight)
+
+    /// Width of the notch shape itself, which stays put while `size.width`
+    /// grows to fit a wider accessory pill beneath it.
+    var notchWidth: CGFloat = Theme.idleWidth
     var pillHeight: CGFloat = Theme.idleHeight
     var cornerRadius: CGFloat = 14
     var toast: NotchToast?
     var isRecording: Bool = false
     var liveTranscript: String = ""
     var onStopRecording: () -> Void = {}
+    var languagePrompt: LanguagePrompt?
+    var onSelectLanguage: (String) -> Void = { _ in }
+    var onConfirmLanguage: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -15,7 +35,7 @@ struct IdleNotchView: View {
         ZStack(alignment: .top) {
             NotchShape(topCornerRadius: Theme.notchTopCornerRadius, bottomCornerRadius: cornerRadius)
                 .fill(Theme.panelBackground)
-                .frame(width: size.width, height: pillHeight)
+                .frame(width: notchWidth, height: pillHeight)
                 .overlay(alignment: .center) {
                     Circle()
                         .fill(Theme.amber)
@@ -24,10 +44,14 @@ struct IdleNotchView: View {
                         .opacity(toast == nil && !isRecording ? 1 : 0)
                 }
 
-            // The recording banner is its own detached pill below the notch,
-            // same treatment as a toast, with an animated Siri-style gradient
-            // standing in for the flat background while a recording is live.
-            if toast == nil, isRecording {
+            // The language prompt outranks the recording banner: it is only up
+            // for the opening seconds, and it is the one thing the user may
+            // need to act on before the meeting is lost to the wrong language.
+            if toast == nil, let languagePrompt {
+                languagePill(languagePrompt)
+                    .padding(.top, pillHeight + Theme.toastGap)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if toast == nil, isRecording {
                 recordingPill
                     .padding(.top, pillHeight + Theme.toastGap)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -41,6 +65,7 @@ struct IdleNotchView: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: toast)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isRecording)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: languagePrompt)
         .frame(width: size.width, height: size.height, alignment: .top)
     }
 
@@ -57,6 +82,59 @@ struct IdleNotchView: View {
         .padding(.horizontal, 14)
         .frame(height: Theme.toastPillHeight)
         .background(Capsule().fill(Theme.panelBackground))
+        .frame(width: size.width, alignment: .center)
+    }
+
+    private func languagePill(_ prompt: LanguagePrompt) -> some View {
+        HStack(spacing: 8) {
+            PulsingRecordDot()
+            Text("Language")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.9))
+
+            Menu {
+                ForEach(prompt.languages) { language in
+                    Button(language.displayName) { onSelectLanguage(language.code) }
+                }
+            } label: {
+                HStack(spacing: 3) {
+                    Text(MeetingLanguageCatalog.displayName(for: prompt.selectedCode))
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(Color.black.opacity(0.28)))
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+
+            if !prompt.engineSupportsSelection {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .help("Apple Speech can't transcribe this language — switch to Gemini Live in Settings.")
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: onConfirmLanguage) {
+                Text("OK")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.black.opacity(0.28)))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .frame(width: Theme.languagePromptWidth, height: Theme.languagePillHeight)
+        .background(SiriGradientView().clipShape(Capsule()))
         .frame(width: size.width, alignment: .center)
     }
 

@@ -25,6 +25,15 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     }
     var onError: ((String) -> Void)?
 
+    /// Requested BCP-47 language, or empty to follow the system. Resolved
+    /// against the recognizer's supported set at `startRecognition`.
+    private let localeIdentifier: String
+
+    init(localeIdentifier: String = "") {
+        self.localeIdentifier = localeIdentifier
+        super.init()
+    }
+
     private let audioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
     private var recognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -90,7 +99,7 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     }
 
     private func startRecognition() {
-        let recognizer = SFSpeechRecognizer(locale: Locale.current) ?? SFSpeechRecognizer()
+        let recognizer = resolveRecognizer()
         guard let recognizer, recognizer.isAvailable else {
             lastError = "Speech recognizer unavailable"
             NSLog("AppleSpeechTranscriber: recognizer unavailable")
@@ -167,6 +176,31 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
                 }
             }
         }
+    }
+
+    /// Picks the recognizer for the requested language.
+    ///
+    /// `SFSpeechRecognizer(locale:)` returns nil for anything outside its fixed
+    /// supported set — including the plain system locale on a Mac configured
+    /// like `en_LT` — so both the request and the system default get mapped
+    /// onto a supported variant of the same language before giving up.
+    private func resolveRecognizer() -> SFSpeechRecognizer? {
+        if !localeIdentifier.isEmpty {
+            if let locale = MeetingLanguageCatalog.resolvedAppleLocale(for: localeIdentifier),
+               let recognizer = SFSpeechRecognizer(locale: locale) {
+                NSLog("AppleSpeechTranscriber: using locale \(locale.identifier) for requested \(localeIdentifier)")
+                return recognizer
+            }
+            lastError = "\(MeetingLanguageCatalog.displayName(for: localeIdentifier)) isn't available for on-device speech recognition — switch the engine to Gemini Live in Settings to transcribe it."
+            return nil
+        }
+
+        if let locale = MeetingLanguageCatalog.resolvedAppleLocale(for: Locale.current.identifier),
+           let recognizer = SFSpeechRecognizer(locale: locale) {
+            NSLog("AppleSpeechTranscriber: system locale \(Locale.current.identifier) resolved to \(locale.identifier)")
+            return recognizer
+        }
+        return SFSpeechRecognizer()
     }
 
     func disconnect() {

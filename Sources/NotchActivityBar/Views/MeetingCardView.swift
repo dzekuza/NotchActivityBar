@@ -8,7 +8,7 @@ struct MeetingCardView: View {
     @State private var isHovering = false
 
     private var previewText: String {
-        if let summary = session.summary, !summary.isEmpty {
+        if let summary = session.displaySummary {
             return summary
         }
         return session.transcript.isEmpty ? "No transcript" : session.transcript

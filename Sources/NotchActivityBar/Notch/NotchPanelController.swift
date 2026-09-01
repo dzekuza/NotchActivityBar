@@ -29,6 +29,7 @@ final class NotchPanelController {
     private var idleCornerRadius: CGFloat = 14
     private var currentToast: NotchToast?
     private var isRecordingBannerActive = false
+    private var isLanguagePromptActive = false
     private(set) var isEnabled = false
     private var lastExpandedHeight: CGFloat = Theme.idleHeight
     private var suppressNextExpandedResizeAnimation = false
@@ -72,6 +73,15 @@ final class NotchPanelController {
             self.isRecordingBannerActive = recording
             self.refreshIdlePanel(animated: true)
         }
+        meetingRecorderController.onLanguagePromptChange = { [weak self] active in
+            self?.setLanguagePromptActive(active)
+        }
+    }
+
+    private func setLanguagePromptActive(_ active: Bool) {
+        guard active != isLanguagePromptActive else { return }
+        isLanguagePromptActive = active
+        refreshIdlePanel(animated: true)
     }
 
     func start() {
@@ -259,15 +269,21 @@ final class NotchPanelController {
     /// extended while a toast or the recording banner is showing.
     private func refreshIdlePanel(animated: Bool) {
         let extra: CGFloat
+        var width = idleGeometry.width
         if currentToast != nil {
             extra = Theme.toastGap + Theme.toastPillHeight
+        } else if isLanguagePromptActive {
+            extra = Theme.toastGap + Theme.languagePillHeight
+            // The prompt is wider than the notch, so the panel has to grow to
+            // hold it — the notch shape itself keeps its own width.
+            width = max(width, Theme.languagePromptWidth + 24)
         } else if isRecordingBannerActive {
             extra = Theme.toastGap + Theme.recordingPillHeight
         } else {
             extra = 0
         }
         let height = idleGeometry.height + extra
-        applyIdlePanelState(width: idleGeometry.width, height: height, toast: currentToast, animated: animated)
+        applyIdlePanelState(width: width, height: height, toast: currentToast, animated: animated)
     }
 
     private func applyIdlePanelState(width: CGFloat, height: CGFloat, toast: NotchToast?, animated: Bool) {
@@ -275,12 +291,31 @@ final class NotchPanelController {
 
         let host = IdleNotchHost(
             size: CGSize(width: width, height: height),
+            notchWidth: idleGeometry.width,
             pillHeight: idleGeometry.height,
             cornerRadius: idleCornerRadius,
             toast: toast,
             isRecording: isRecordingBannerActive,
             liveTranscript: meetingRecorderController.activeTranscriber?.transcript ?? "",
-            onStopRecording: { [weak self] in self?.meetingRecorderController.toggleManually() }
+            onStopRecording: { [weak self] in self?.meetingRecorderController.toggleManually() },
+            languagePrompt: isLanguagePromptActive ? LanguagePrompt(
+                languages: meetingRecorderController.languageOptions,
+                selectedCode: meetingRecorderController.selectedLanguageCode,
+                engineSupportsSelection: MeetingLanguageCatalog.isSupported(
+                    meetingRecorderController.selectedLanguageCode,
+                    by: meetingRecorderController.aiSettings.engine
+                )
+            ) : nil,
+            onSelectLanguage: { [weak self] code in
+                guard let self else { return }
+                self.meetingRecorderController.changeLanguage(to: code)
+                self.setLanguagePromptActive(false)
+            },
+            onConfirmLanguage: { [weak self] in
+                guard let self else { return }
+                self.meetingRecorderController.confirmLanguage()
+                self.setLanguagePromptActive(false)
+            }
         )
         if let idleHostingView {
             idleHostingView.rootView = host

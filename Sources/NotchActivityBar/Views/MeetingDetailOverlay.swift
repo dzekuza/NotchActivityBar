@@ -12,8 +12,7 @@ struct MeetingDetailOverlay: View {
     @State private var showCopiedConfirmation = false
 
     private var summary: String? {
-        guard let summary = session.summary, !summary.isEmpty else { return nil }
-        return summary
+        session.displaySummary
     }
 
     private var transcript: String {

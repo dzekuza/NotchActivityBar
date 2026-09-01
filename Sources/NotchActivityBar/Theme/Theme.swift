@@ -102,6 +102,11 @@ enum Theme {
     static let toastGap: CGFloat = 6
     static let toastPillHeight: CGFloat = 30
     static let recordingPillHeight: CGFloat = 32
+
+    /// The language prompt needs a menu and a button side by side, so it is
+    /// both taller than a toast and wider than the notch it hangs under.
+    static let languagePillHeight: CGFloat = 34
+    static let languagePromptWidth: CGFloat = 360
     static let toastDuration: Double = 1.8
     static let fallbackMenuBarHeight: CGFloat = 24
     static let expandedWidth: CGFloat = 680

@@ -23,12 +23,29 @@ final class MeetingRecorderController {
     /// transcript grows so the live card can show turns instead of a blob.
     private(set) var liveSegments: [TranscriptSegment] = []
 
+    /// True for the first moments of a recording, while the notch offers a
+    /// chance to correct the transcription language. Auto-detection is a guess
+    /// and a wrong one costs the whole meeting, so the guess is shown rather
+    /// than buried in Settings — but it dismisses itself so an unattended
+    /// recording is never blocked on a click.
+    private(set) var isAwaitingLanguageConfirmation = false {
+        didSet {
+            guard isAwaitingLanguageConfirmation != oldValue else { return }
+            onLanguagePromptChange?(isAwaitingLanguageConfirmation)
+        }
+    }
+
     let aiSettings = MeetingAISettings()
     let apiKeyStore = GeminiAPIKeyStore()
     let permissions = PermissionsController()
 
     /// Fired whenever `isRecording` flips, for non-SwiftUI observers (the notch banner).
     var onRecordingStateChange: ((Bool) -> Void)?
+
+    /// Mirrors `isAwaitingLanguageConfirmation` for the notch, which isn't a
+    /// SwiftUI observer — same reason `onRecordingStateChange` exists. Fires on
+    /// the self-dismiss timeout too, not just on user action.
+    var onLanguagePromptChange: ((Bool) -> Void)?
 
     private let callActivityDetector = CallActivityDetector()
     private let speakerTimeline = SpeakerTimeline()
@@ -37,6 +54,9 @@ final class MeetingRecorderController {
     /// and the level callback fires ten times a second — left ungated, an
     /// hour-long meeting would re-tokenize tens of thousands of words on every
     /// tick. The final transcript is built once, in full, at teardown.
+    private var languagePromptTask: Task<Void, Never>?
+    private let languagePromptTimeout: TimeInterval = 12
+
     private var lastLiveRefresh = Date.distantPast
     private var lastLiveWordCount = 0
     private let liveRefreshInterval: TimeInterval = 0.5
@@ -44,6 +64,10 @@ final class MeetingRecorderController {
     /// How much of the tail the live card formats. It only shows the last few
     /// lines, so formatting the whole backlog every refresh buys nothing.
     private let liveSegmentWordWindow = 400
+
+    /// Below this a transcript has nothing to summarize into bullet points.
+    /// Roughly 30 seconds of speech.
+    private let minimumWordsForSummary = 60
     private var audioCapture: MeetingAudioCapture?
     private var currentSession: MeetingSession?
 
@@ -89,6 +113,49 @@ final class MeetingRecorderController {
         if !enabled, isAutoStartedSession {
             stopRecording()
         }
+    }
+
+    var languageOptions: [MeetingLanguage] {
+        MeetingLanguageCatalog.available(for: aiSettings.engine)
+    }
+
+    var selectedLanguageCode: String { aiSettings.languageCode }
+
+    func confirmLanguage() {
+        languagePromptTask?.cancel()
+        languagePromptTask = nil
+        isAwaitingLanguageConfirmation = false
+    }
+
+    /// Switches language mid-recording, discarding what was transcribed so far.
+    ///
+    /// Dropping it is deliberate: the prompt only appears in the opening
+    /// seconds, and anything recognized before a correction was recognized in
+    /// the wrong language, so it is worse than nothing. Restarting clean also
+    /// keeps per-word timings intact, which speaker attribution needs — a
+    /// carried-over transcript has none and would lose the labels.
+    func changeLanguage(to code: String) {
+        guard code != aiSettings.languageCode else {
+            confirmLanguage()
+            return
+        }
+        aiSettings.languageCode = code
+
+        guard isRecording, currentSession != nil else {
+            confirmLanguage()
+            return
+        }
+        activeTranscriber?.disconnect()
+        carriedOverTranscript = ""
+        liveSegments = []
+        lastLiveWordCount = 0
+        lastLiveRefresh = .distantPast
+        speakerTimeline.reset()
+
+        let transcriber = makeTranscriber()
+        activeTranscriber = transcriber
+        transcriber.connect()
+        confirmLanguage()
     }
 
     /// Manual override, usable regardless of auto-detect.
@@ -176,6 +243,7 @@ final class MeetingRecorderController {
                 }
                 self.lastWarning = capture.systemAudioFailure
                 self.isRecording = true
+                self.beginLanguageConfirmation()
                 self.onRecordingStateChange?(true)
             } catch {
                 guard self.audioCapture === capture else { return }
@@ -221,6 +289,9 @@ final class MeetingRecorderController {
         }
         currentSession = nil
         isAutoStartedSession = false
+        languagePromptTask?.cancel()
+        languagePromptTask = nil
+        isAwaitingLanguageConfirmation = false
         liveSegments = []
         speakerTimeline.reset()
         carriedOverTranscript = ""
@@ -244,6 +315,16 @@ final class MeetingRecorderController {
             return MeetingTranscriptFormatter.unattributedSegments(from: rawTranscript)
         }
         return MeetingTranscriptFormatter.segments(from: words, timeline: speakerTimeline)
+    }
+
+    private func beginLanguageConfirmation() {
+        isAwaitingLanguageConfirmation = true
+        languagePromptTask?.cancel()
+        languagePromptTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(self?.languagePromptTimeout ?? 12))
+            guard !Task.isCancelled else { return }
+            self?.isAwaitingLanguageConfirmation = false
+        }
     }
 
     private func refreshLiveSegments() {
@@ -284,7 +365,7 @@ final class MeetingRecorderController {
     }
 
     private func makeAppleSpeechTranscriber() -> AppleSpeechTranscriber {
-        let transcriber = AppleSpeechTranscriber()
+        let transcriber = AppleSpeechTranscriber(localeIdentifier: aiSettings.languageCode)
         transcriber.onError = { [weak self] errorMsg in
             Task { @MainActor in
                 self?.lastError = "Transcription: \(errorMsg)"
@@ -312,11 +393,15 @@ final class MeetingRecorderController {
     private func requestSummary(for session: MeetingSession) {
         guard aiSettings.isSummaryEnabled, let apiKey = apiKeyStore.apiKey, !apiKey.isEmpty else { return }
         let transcript = session.transcript
-        guard transcript.count > 20 else { return }
+        // A handful of words is not a meeting. The old 20-character bar meant
+        // every stray 10-second recording spent an API call only to be told
+        // there was nothing to summarize.
+        let wordCount = transcript.split(whereSeparator: \.isWhitespace).count
+        guard wordCount >= minimumWordsForSummary else { return }
 
         Task { @MainActor in
             do {
-                let summary = try await GeminiSummaryService.summarize(transcript: transcript, apiKey: apiKey)
+                guard let summary = try await GeminiSummaryService.summarize(transcript: transcript, apiKey: apiKey) else { return }
                 var updated = session
                 updated.summary = summary
                 await MeetingSessionStore.save(updated)

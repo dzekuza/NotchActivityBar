@@ -13,6 +13,14 @@ struct MeetingSession: Identifiable, Equatable, Codable {
     /// it — those render as plain text.
     var segments: [TranscriptSegment]?
 
+    /// The summary to actually show, or nil when there isn't a real one.
+    /// Filters the "no summary" sentinel, including from sessions that stored
+    /// it before that was treated as a signal rather than content.
+    var displaySummary: String? {
+        guard let summary, !GeminiSummaryService.isUnavailable(summary) else { return nil }
+        return summary
+    }
+
     var title: String {
         Self.titleFormatter.string(from: startedAt)
     }
