@@ -6,6 +6,8 @@ struct MeetingsTabView: View {
 
     @State private var expandedSessionID: UUID?
 
+    private let liveTranscriptBottomID = "live-transcript-bottom"
+
     /// Looked up by id rather than held by value: `requestSummary` patches
     /// `pastSessions` asynchronously, so an AI summary that lands while the
     /// overlay is open still shows up in it.
@@ -150,15 +152,29 @@ struct MeetingsTabView: View {
                     .foregroundStyle(Theme.danger)
             }
 
-            if controller.activeTranscriber?.transcript.isEmpty ?? true {
+            if controller.liveSegments.isEmpty {
                 TranscribingIndicatorView()
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text(controller.activeTranscriber?.transcript ?? "")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.primaryText.opacity(0.9))
-                    .lineLimit(4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Pinned to a fixed height and scrolled to the newest turn: the
+                // live transcript grows without bound, and anything that feeds
+                // the panel's measured height would restart the window resize
+                // animation on every recognized word.
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        TranscriptSegmentsView(
+                            segments: controller.liveSegments,
+                            textSize: 12,
+                            isSelectable: false
+                        )
+                        .padding(.trailing, 4)
+                        .id(liveTranscriptBottomID)
+                    }
+                    .frame(height: 76)
+                    .onChange(of: controller.liveSegments) {
+                        proxy.scrollTo(liveTranscriptBottomID, anchor: .bottom)
+                    }
+                }
             }
         }
         .padding(12)

@@ -29,6 +29,13 @@ final class MeetingAudioCapture: NSObject {
 
     var onPCMChunk: ((Data) -> Void)?
 
+    /// Per-tick loudness of each channel before they're summed, so the owner
+    /// can tell who was speaking. Emitted alongside every `onPCMChunk`: the two
+    /// halves are mixed into one stream for transcription, but the split is the
+    /// only speaker signal available, so it has to be sampled here before it's
+    /// thrown away.
+    var onChannelLevels: ((_ mic: Double, _ system: Double) -> Void)?
+
     /// Set when the system-audio half of the capture couldn't start. Recording
     /// still proceeds mic-only, but only *our* side of the call gets recorded —
     /// which previously was logged and nowhere else, so a meeting silently came
@@ -180,12 +187,18 @@ final class MeetingAudioCapture: NSObject {
         if mixBuffer.count != sampleCount {
             mixBuffer = [Int16](repeating: 0, count: sampleCount)
         }
+        var micEnergy = 0.0
+        var systemEnergy = 0.0
         for i in 0..<sampleCount {
+            micEnergy += Double(abs(Int32(mic[i])))
+            systemEnergy += Double(abs(Int32(system[i])))
             let sum = Int32(mic[i]) + Int32(system[i])
             mixBuffer[i] = Int16(clamping: sum)
         }
         let data = mixBuffer.withUnsafeBufferPointer { Data(buffer: $0) }
         onPCMChunk?(data)
+        let divisor = Double(max(sampleCount, 1))
+        onChannelLevels?(micEnergy / divisor, systemEnergy / divisor)
     }
 
     // MARK: - Conversion helpers

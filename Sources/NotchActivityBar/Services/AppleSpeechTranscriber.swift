@@ -10,6 +10,11 @@ import Speech
 @Observable
 final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     private(set) var transcript = ""
+
+    /// Per-word timings for the current recognition task, carried across a
+    /// stall-reconnect along with the text.
+    private(set) var timedWords: [TimedTranscriptWord] = []
+
     private(set) var isConnected = false
     private(set) var lastError: String? {
         didSet {
@@ -29,6 +34,13 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     /// (see `reconnectAfterStall`), so restarting recognition doesn't drop what
     /// was already transcribed before the stall.
     private var committedTranscript = ""
+    private var committedWords: [TimedTranscriptWord] = []
+
+    /// Wall clock at which the *current* recognition task's audio began.
+    /// Segment timestamps are relative to that task, and a stall-reconnect
+    /// restarts them at zero, so each task needs its own anchor.
+    private var taskStartedAt = Date()
+
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 3
 
@@ -89,10 +101,15 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        // Without this the recognizer returns an unbroken run of lowercase
+        // words, which is what made recorded meetings unreadable — no sentence
+        // boundaries for the formatter to break lines on.
+        request.addsPunctuation = true
         if recognizer.supportsOnDeviceRecognition {
             request.requiresOnDeviceRecognition = true
         }
         recognitionRequest = request
+        taskStartedAt = Date()
         lastError = nil
         isConnected = true
 
@@ -103,6 +120,12 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
             let text = result?.bestTranscription.formattedString
             let isFinal = result?.isFinal ?? false
             let nsError = error.map { $0 as NSError }
+            // Read the segments here, off the main thread, for the same reason
+            // as `text`: SFTranscription isn't Sendable, so only plain values
+            // may cross to the actor below.
+            let timings: [(String, TimeInterval, TimeInterval)]? = result?.bestTranscription.segments.map {
+                ($0.substring, $0.timestamp, $0.duration)
+            }
 
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -110,6 +133,16 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
                     NSLog("AppleSpeechTranscriber: partial result — \(text)")
                     self.transcript = self.committedTranscript.isEmpty ? text : self.committedTranscript + " " + text
                     self.reconnectAttempts = 0
+                }
+                if let timings {
+                    let anchor = self.taskStartedAt
+                    self.timedWords = self.committedWords + timings.map { substring, timestamp, duration in
+                        TimedTranscriptWord(
+                            text: substring,
+                            startedAt: anchor.addingTimeInterval(timestamp),
+                            endedAt: anchor.addingTimeInterval(timestamp + duration)
+                        )
+                    }
                 }
                 if let nsError {
                     // Recognizer cancellation (from our own disconnect()) surfaces as
@@ -150,6 +183,8 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
     func resetTranscript() {
         transcript = ""
         committedTranscript = ""
+        timedWords = []
+        committedWords = []
     }
 
     private func reconnectAfterStall(errorDescription: String) {
@@ -167,6 +202,7 @@ final class AppleSpeechTranscriber: NSObject, LiveTranscriber {
         }
         reconnectAttempts += 1
         committedTranscript = transcript
+        committedWords = timedWords
         NSLog("AppleSpeechTranscriber: recognition task stalled (\(errorDescription)) — reconnecting, attempt \(reconnectAttempts)")
         startRecognition()
     }

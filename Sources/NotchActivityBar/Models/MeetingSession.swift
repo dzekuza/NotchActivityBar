@@ -7,6 +7,12 @@ struct MeetingSession: Identifiable, Equatable, Codable {
     var transcript: String
     var summary: String?
 
+    /// Speaker-attributed, sentence-broken form of `transcript`, which stays
+    /// the flat rendering used for search, copy, and summarization. Optional
+    /// because sessions recorded before speaker labels existed decode without
+    /// it — those render as plain text.
+    var segments: [TranscriptSegment]?
+
     var title: String {
         Self.titleFormatter.string(from: startedAt)
     }

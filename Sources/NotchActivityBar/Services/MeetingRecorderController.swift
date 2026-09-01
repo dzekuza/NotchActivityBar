@@ -19,6 +19,10 @@ final class MeetingRecorderController {
     /// While recording, observe `activeTranscriber?.transcript` for the live text.
     private(set) var activeTranscriber: (any LiveTranscriber)?
 
+    /// Speaker-attributed view of the in-progress recording, rebuilt as the
+    /// transcript grows so the live card can show turns instead of a blob.
+    private(set) var liveSegments: [TranscriptSegment] = []
+
     let aiSettings = MeetingAISettings()
     let apiKeyStore = GeminiAPIKeyStore()
     let permissions = PermissionsController()
@@ -27,6 +31,19 @@ final class MeetingRecorderController {
     var onRecordingStateChange: ((Bool) -> Void)?
 
     private let callActivityDetector = CallActivityDetector()
+    private let speakerTimeline = SpeakerTimeline()
+
+    /// Throttling for the live speaker view. Rebuilding it is O(transcript),
+    /// and the level callback fires ten times a second — left ungated, an
+    /// hour-long meeting would re-tokenize tens of thousands of words on every
+    /// tick. The final transcript is built once, in full, at teardown.
+    private var lastLiveRefresh = Date.distantPast
+    private var lastLiveWordCount = 0
+    private let liveRefreshInterval: TimeInterval = 0.5
+
+    /// How much of the tail the live card formats. It only shows the last few
+    /// lines, so formatting the whole backlog every refresh buys nothing.
+    private let liveSegmentWordWindow = 400
     private var audioCapture: MeetingAudioCapture?
     private var currentSession: MeetingSession?
 
@@ -109,6 +126,10 @@ final class MeetingRecorderController {
         guard !isRecording, audioCapture == nil else { return }
 
         carriedOverTranscript = ""
+        liveSegments = []
+        lastLiveRefresh = .distantPast
+        lastLiveWordCount = 0
+        speakerTimeline.reset()
         let transcriber = makeTranscriber()
         activeTranscriber = transcriber
         transcriber.connect()
@@ -118,6 +139,11 @@ final class MeetingRecorderController {
         // directly) so a mid-recording fallback swap keeps receiving audio.
         capture.onPCMChunk = { [weak self] data in
             self?.activeTranscriber?.send(pcmChunk: data)
+        }
+        capture.onChannelLevels = { [weak self] mic, system in
+            guard let self else { return }
+            self.speakerTimeline.record(micLevel: mic, systemLevel: system, at: Date())
+            self.refreshLiveSegments()
         }
         capture.onStreamStopped = { [weak self] error in
             guard let self else { return }
@@ -186,12 +212,17 @@ final class MeetingRecorderController {
             session.endedAt = Date()
             let liveTranscript = activeTranscriber?.transcript ?? ""
             let rawTranscript = (carriedOverTranscript + liveTranscript).trimmingCharacters(in: .whitespacesAndNewlines)
-            session.transcript = rawTranscript.isEmpty ? "Audio recording completed" : rawTranscript
+            let segments = buildSegments(rawTranscript: rawTranscript)
+            session.segments = segments.isEmpty ? nil : segments
+            let rendered = segments.isEmpty ? rawTranscript : MeetingTranscriptFormatter.plainText(from: segments)
+            session.transcript = rendered.isEmpty ? "Audio recording completed" : rendered
             pastSessions.insert(session, at: 0)
             persistedSession = session
         }
         currentSession = nil
         isAutoStartedSession = false
+        liveSegments = []
+        speakerTimeline.reset()
         carriedOverTranscript = ""
         lastWarning = nil
 
@@ -201,6 +232,37 @@ final class MeetingRecorderController {
         isRecording = false
         onRecordingStateChange?(false)
         return persistedSession
+    }
+
+    /// Speaker attribution needs per-word timings. A transcript carried over
+    /// from a failed engine has none, so once a fallback has happened the whole
+    /// thing degrades to sentence breaks only rather than mislabelling the
+    /// carried-over half as whoever spoke most recently.
+    private func buildSegments(rawTranscript: String) -> [TranscriptSegment] {
+        let words = activeTranscriber?.timedWords ?? []
+        guard !words.isEmpty, carriedOverTranscript.isEmpty else {
+            return MeetingTranscriptFormatter.unattributedSegments(from: rawTranscript)
+        }
+        return MeetingTranscriptFormatter.segments(from: words, timeline: speakerTimeline)
+    }
+
+    private func refreshLiveSegments() {
+        let words = activeTranscriber?.timedWords ?? []
+        let now = Date()
+        guard words.count != lastLiveWordCount,
+              now.timeIntervalSince(lastLiveRefresh) >= liveRefreshInterval
+        else { return }
+        lastLiveRefresh = now
+        lastLiveWordCount = words.count
+
+        guard !words.isEmpty, carriedOverTranscript.isEmpty else {
+            liveSegments = MeetingTranscriptFormatter.unattributedSegments(
+                from: carriedOverTranscript + (activeTranscriber?.transcript ?? "")
+            )
+            return
+        }
+        let tail = words.suffix(liveSegmentWordWindow)
+        liveSegments = MeetingTranscriptFormatter.segments(from: Array(tail), timeline: speakerTimeline)
     }
 
     private func makeTranscriber() -> any LiveTranscriber {

@@ -100,7 +100,20 @@ struct MeetingDetailOverlay: View {
                 if let summary {
                     section(title: "Summary", text: summary)
                 }
-                section(title: summary == nil ? nil : "Transcript", text: transcript)
+                if let segments = session.segments, !segments.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if summary != nil {
+                            Text("Transcript")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Theme.tertiaryText)
+                                .textCase(.uppercase)
+                        }
+                        TranscriptSegmentsView(segments: segments)
+                    }
+                } else {
+                    // Recorded before speaker labels existed — no turns to show.
+                    section(title: summary == nil ? nil : "Transcript", text: transcript)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
