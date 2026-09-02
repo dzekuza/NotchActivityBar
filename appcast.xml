@@ -3,6 +3,15 @@
     <channel>
         <title>NotchActivityBar</title>
         <item>
+            <title>1.3.9</title>
+            <pubDate>Wed, 02 Sep 2026 14:01:02 +0300</pubDate>
+            <sparkle:version>20</sparkle:version>
+            <sparkle:shortVersionString>1.3.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/dzekuza/NotchActivityBar/releases/download/v1.3.9/NotchActivityBar.dmg" length="2240785" type="application/octet-stream" sparkle:edSignature="TBhLuc5OEq+r1Tx1oiH84S6s3z9GsaNPZI7kMiE2taGReHpzj+btw8ymM+OuhhVMNfwyq6Y8V9vbgUoZKc7ZBQ=="/>
+        </item>
+        <item>
             <title>1.3.8</title>
             <pubDate>Tue, 01 Sep 2026 19:44:17 +0300</pubDate>
             <sparkle:version>19</sparkle:version>
@@ -19,15 +28,6 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/dzekuza/NotchActivityBar/releases/download/v1.3.7/NotchActivityBar.dmg" length="2188033" type="application/octet-stream" sparkle:edSignature="aGsfznZXqvt0AoAs79/KAT3l0vzNzoGOwi0FBLIA2sa3Y4Tc6lGYyJSbJLz2hh0j3PBtV0DPlLO3omZ0QoyQDg=="/>
-        </item>
-        <item>
-            <title>1.3.6</title>
-            <pubDate>Sun, 30 Aug 2026 20:31:38 +0300</pubDate>
-            <sparkle:version>17</sparkle:version>
-            <sparkle:shortVersionString>1.3.6</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/dzekuza/NotchActivityBar/releases/download/v1.3.6/NotchActivityBar.dmg" length="2150170" type="application/octet-stream" sparkle:edSignature="oeynPON1GmJ4ktRbQ5NRWugL4Zb9kxI7jP8DuMKG+b7am7i2hKqXoV0zXnotbMLfkVZKyOd0ttSlbj2tjsf/DQ=="/>
         </item>
     </channel>
 </rss>
