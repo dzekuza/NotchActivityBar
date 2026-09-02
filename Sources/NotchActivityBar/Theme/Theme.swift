@@ -105,6 +105,9 @@ enum Theme {
 
     /// The language prompt needs a menu and a button side by side, so it is
     /// both taller than a toast and wider than the notch it hangs under.
+    /// Wide enough for a few seconds of speech to be readable as it scrolls.
+    static let recordingPillWidth: CGFloat = 340
+
     static let languagePillHeight: CGFloat = 34
     static let languagePromptWidth: CGFloat = 360
     static let toastDuration: Double = 1.8

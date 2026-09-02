@@ -141,12 +141,7 @@ struct IdleNotchView: View {
     private var recordingPill: some View {
         HStack(spacing: 8) {
             PulsingRecordDot()
-            Text(liveTranscript.isEmpty ? "Recording…" : liveTranscript)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
-                .lineLimit(1)
-                .frame(maxWidth: 110, alignment: .leading)
+            LiveTranscriptTicker(text: liveTranscript)
 
             Button(action: onStopRecording) {
                 Text("Stop")
@@ -159,9 +154,77 @@ struct IdleNotchView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
-        .frame(height: Theme.recordingPillHeight)
+        .frame(width: Theme.recordingPillWidth, height: Theme.recordingPillHeight)
         .background(SiriGradientView().clipShape(Capsule()))
         .frame(width: size.width, alignment: .center)
+    }
+}
+
+/// The live transcript as a one-line ticker that keeps the newest words in
+/// view, sliding older text off to the left.
+///
+/// Truncating with an ellipsis showed the *oldest* words and hid everything
+/// being said, which is backwards for a live transcript — so this pins the
+/// scroll to the trailing edge instead. Only the tail of the transcript is
+/// rendered: by the end of a long meeting the full string is many thousands of
+/// characters, and laying all of it out twice a second to look at the last few
+/// words is wasted work.
+private struct LiveTranscriptTicker: View {
+    let text: String
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let tailCharacterLimit = 220
+    private static let tailID = "transcript-tail"
+
+    private var displayText: String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Recording…" }
+        guard trimmed.count > Self.tailCharacterLimit else { return trimmed }
+        return String(trimmed.suffix(Self.tailCharacterLimit))
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    Text(displayText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                    // Anchor to scroll to; scrolling to the text itself would
+                    // align its leading edge and show the start, not the end.
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .id(Self.tailID)
+                }
+            }
+            .scrollDisabled(true)
+            .onChange(of: displayText, initial: true) { _, _ in
+                guard !reduceMotion else {
+                    proxy.scrollTo(Self.tailID, anchor: .trailing)
+                    return
+                }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    proxy.scrollTo(Self.tailID, anchor: .trailing)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Fades text out as it leaves rather than clipping it mid-glyph.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.08),
+                    .init(color: .black, location: 1),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
     }
 }
 

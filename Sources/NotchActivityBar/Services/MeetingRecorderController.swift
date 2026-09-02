@@ -42,6 +42,13 @@ final class MeetingRecorderController {
     /// Fired whenever `isRecording` flips, for non-SwiftUI observers (the notch banner).
     var onRecordingStateChange: ((Bool) -> Void)?
 
+    /// Fires when the live transcript has advanced, at the same throttled rate
+    /// as `liveSegments`. The notch's idle panel is an `NSHostingView` handed a
+    /// plain string, not a SwiftUI observer, so without this its transcript is
+    /// whatever was captured the last time the panel happened to be rebuilt —
+    /// it froze a few seconds into every recording.
+    var onLiveTranscriptChange: (() -> Void)?
+
     /// Mirrors `isAwaitingLanguageConfirmation` for the notch, which isn't a
     /// SwiftUI observer — same reason `onRecordingStateChange` exists. Fires on
     /// the self-dismiss timeout too, not just on user action.
@@ -340,10 +347,12 @@ final class MeetingRecorderController {
             liveSegments = MeetingTranscriptFormatter.unattributedSegments(
                 from: carriedOverTranscript + (activeTranscriber?.transcript ?? "")
             )
+            onLiveTranscriptChange?()
             return
         }
         let tail = words.suffix(liveSegmentWordWindow)
         liveSegments = MeetingTranscriptFormatter.segments(from: Array(tail), timeline: speakerTimeline)
+        onLiveTranscriptChange?()
     }
 
     private func makeTranscriber() -> any LiveTranscriber {

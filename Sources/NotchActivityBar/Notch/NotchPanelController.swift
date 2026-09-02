@@ -76,6 +76,12 @@ final class NotchPanelController {
         meetingRecorderController.onLanguagePromptChange = { [weak self] active in
             self?.setLanguagePromptActive(active)
         }
+        meetingRecorderController.onLiveTranscriptChange = { [weak self] in
+            guard let self, self.isRecordingBannerActive, !self.isLanguagePromptActive else { return }
+            // Rebuilds the hosting view's root with the new text. The frame is
+            // recomputed to the same values, so this never animates or resizes.
+            self.refreshIdlePanel(animated: false)
+        }
     }
 
     private func setLanguagePromptActive(_ active: Bool) {
@@ -279,6 +285,9 @@ final class NotchPanelController {
             width = max(width, Theme.languagePromptWidth + 24)
         } else if isRecordingBannerActive {
             extra = Theme.toastGap + Theme.recordingPillHeight
+            // Same reason as the language prompt: the transcript ticker needs
+            // more room than the notch itself is wide.
+            width = max(width, Theme.recordingPillWidth + 24)
         } else {
             extra = 0
         }

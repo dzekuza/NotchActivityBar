@@ -8,6 +8,7 @@ struct ScreenshotCardView: View {
     let onExtractText: () -> Void
 
     @State private var isHovering = false
+    @State private var didCopy = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -54,17 +55,30 @@ struct ScreenshotCardView: View {
         }
         .overlay(alignment: .topTrailing) {
             if isHovering {
-                Button(action: onDelete) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 18, height: 18)
-                        .background(Circle().fill(Theme.overlayChipBackground))
+                HStack(spacing: 4) {
+                    Button(action: copyImage) {
+                        Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(Theme.overlayChipBackground))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy screenshot")
+                    .accessibilityLabel("Copy screenshot")
+
+                    Button(action: onDelete) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(Theme.overlayChipBackground))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Delete screenshot")
                 }
-                .buttonStyle(.plain)
                 .padding(6)
                 .transition(.opacity)
-                .accessibilityLabel("Delete screenshot")
             }
         }
         .overlay(alignment: .topLeading) {
@@ -95,6 +109,7 @@ struct ScreenshotCardView: View {
         .onHover { isHovering = $0 }
         .contentShape(Rectangle())
         .onTapGesture { NSWorkspace.shared.open(item.url) }
+        .animation(.easeOut(duration: 0.12), value: didCopy)
         .draggable(item.url) {
             if let thumbnail = item.thumbnail {
                 Image(nsImage: thumbnail)
@@ -103,6 +118,28 @@ struct ScreenshotCardView: View {
                     .frame(width: Theme.cardWidth, height: Theme.cardImageHeight)
                     .clipShape(RoundedRectangle(cornerRadius: Theme.cardCornerRadius, style: .continuous))
             }
+        }
+    }
+
+    /// Puts the picture itself on the pasteboard, with the file reference
+    /// behind it. Order is the preference order pasting apps see: a chat or a
+    /// document takes the image, while Finder and anything wanting a file
+    /// still gets the original off disk rather than a re-encoded copy.
+    private func copyImage() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+
+        var objects: [NSPasteboardWriting] = []
+        if let image = NSImage(contentsOf: item.url) {
+            objects.append(image)
+        }
+        objects.append(item.url as NSURL)
+        pasteboard.writeObjects(objects)
+
+        didCopy = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            didCopy = false
         }
     }
 }
